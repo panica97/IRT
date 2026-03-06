@@ -4,10 +4,19 @@ topics:
     channels:
     - name: AI Jason
       url: https://www.youtube.com/@AIJason
+      last_fetched: null
     - name: Matt Williams
       url: https://www.youtube.com/@technovangelist
+      last_fetched: null
   trading:
     description: Algorithmic and quantitative trading
     channels:
     - name: QuantProgram
       url: https://www.youtube.com/@QuantProgram
+      last_fetched: null
+  futures:
+    description: Futures strategies
+    channels:
+    - name: Jacob Amaral
+      url: https://www.youtube.com/@jacobamaral
+      last_fetched: null

@@ -31,6 +31,7 @@ pip install yt-dlp pyyaml
 
 <repo>/
   channels.yaml           # Channel database (version-controlled)
+  strategies.yaml         # Strategies database (version-controlled)
 ```
 
 ### Step 1: Create the slash commands
@@ -53,11 +54,38 @@ pip install yt-dlp pyyaml
 
 The channel database (`channels.yaml`) lives in the repo root and is version-controlled. Both `channels.py` and `fetch_topic.py` require a `--db <path>` flag pointing to this file. The slash commands pass `--db ./channels.yaml` automatically.
 
+Each channel entry includes a `last_fetched` field (ISO date string or `null`) that is automatically updated when `fetch_topic.py` successfully retrieves videos from that channel.
+
 To add channels manually:
 
 ```
 /yt-channels add ai-agents https://www.youtube.com/@AIJason --name "AI Jason"
 ```
+
+### Step 4: Strategies database
+
+The strategies database (`strategies.yaml`) stores trading/investment strategies extracted from videos. It lives in the repo root and is version-controlled.
+
+Schema for each strategy entry:
+
+```yaml
+strategies:
+  - name: rsi-divergence-reversal         # assigned by extraction agent
+    description: "Mean reversion using RSI divergence on pullbacks"
+    source:
+      video_url: https://youtube.com/watch?v=abc123
+      channel: QuantProgram
+      topic: trading
+    rules:
+      entry: "Long when RSI divergence on 1h chart + price above 200 EMA"
+      exit: "Close at 2R target or trailing stop at 1R"
+      timeframe: 1h
+      market: crypto                       # forex, stocks, crypto, futures...
+    backtested: false
+    metrics: null                           # filled by backtesting agent
+```
+
+When the backtesting agent runs, it sets `backtested: true` and fills `metrics` with results (e.g. `win_rate`, `total_return`).
 
 ## Usage
 
