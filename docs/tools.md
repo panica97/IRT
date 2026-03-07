@@ -1,0 +1,73 @@
+# Tools
+
+Scripts Python en `tools/` que se ejecutan como modulos.
+
+## YouTube (`tools/youtube/`)
+
+### Busqueda por keyword
+
+```bash
+python -m tools.youtube.search "futures trading" --count 5 --months 3
+```
+
+| Flag | Default | Descripcion |
+|------|---------|-------------|
+| `--count N` | 20 | Numero de resultados |
+| `--months N` | 6 | Solo videos de los ultimos N meses |
+| `--no-date-filter` | — | Sin filtro de fecha |
+
+Devuelve: titulo, canal (subs), views, duracion, fecha, URL.
+
+### Fetch por topic
+
+```bash
+python -m tools.youtube.fetch_topic --db data/channels/channels.yaml futures --days 14
+```
+
+| Flag | Default | Descripcion |
+|------|---------|-------------|
+| `--db <path>` | — | Ruta a channels.yaml (requerido) |
+| `--days N` | 7 | Solo videos de los ultimos N dias |
+| `--count N` | 30 | Maximo de resultados |
+
+Busca en paralelo (4 workers) en todos los canales del topic. Actualiza `last_fetched` automaticamente.
+
+### Gestion de canales
+
+```bash
+python -m tools.youtube.channels --db data/channels/channels.yaml <comando>
+```
+
+| Comando | Descripcion |
+|---------|-------------|
+| `topics` | Lista todos los topics |
+| `list [topic]` | Muestra canales (todos o por topic) |
+| `add <topic> <url> [--name N]` | Anade canal a un topic |
+| `remove <topic> <url>` | Elimina canal de un topic |
+
+## Slash commands
+
+Los slash commands son la interfaz principal desde Claude Code:
+
+### `/yt-search`
+
+```
+/yt-search claude code tutorial --count 5
+/yt-search --topic futures --days 14
+/yt-search --topic trading --days 7 --count 20
+```
+
+Si incluye `--topic`, usa `fetch_topic.py`. Si no, usa `search.py`.
+
+### `/yt-channels`
+
+```
+/yt-channels topics
+/yt-channels list futures
+/yt-channels add futures https://www.youtube.com/@canal --name "Canal"
+/yt-channels remove futures https://www.youtube.com/@canal
+```
+
+### `/notebooklm`
+
+Referencia completa en `.claude/skills/notebooklm/SKILL.md`.
