@@ -1,31 +1,36 @@
-# Jarvis — Multi-Agent Trading Research Pipeline
+# Jarvis
 
-Pipeline que monitorea canales de YouTube de trading, extrae estrategias usando NotebookLM y las prepara para backtesting en Strategy Quant. Orquestado por Claude Code como sistema multi-agente.
+Sistema de agentes IA que opera como una empresa con dos departamentos:
 
-## Quickstart
+## Research
 
-```bash
-# Build
-docker compose build
+Investiga y extrae estrategias de trading cuantitativo:
 
-# Buscar videos
-docker compose run pipeline python -m tools.youtube.search "futures trading" --count 5
+1. **YouTube Scraper** — monitorea canales de trading y detecta videos relevantes
+2. **NotebookLM Analyst** — analiza los videos y extrae estrategias estructuradas (reglas de entrada/salida, parametros, gestion de riesgo)
+3. **DB Manager** — mantiene las bases de datos de canales y estrategias
+4. **Backtester** — traduce las estrategias a Strategy Quant y ejecuta backtests
 
-# Fetch por topic
-docker compose run pipeline python -m tools.youtube.fetch_topic --db data/channels/channels.yaml futures --days 14
-```
+## Code
 
-Desde Claude Code:
+Desarrolla y mantiene la infraestructura del sistema:
 
-```
-/yt-search --topic futures --days 14
-/yt-channels list
-/notebooklm
-```
+1. **Developer** — implementa features y fixes
+2. **Reviewer** — revisa codigo antes de integrar
+3. **Tester** — valida que todo funcione
+
+## Stack
+
+- **Orquestador:** Claude Code CLI
+- **Lenguaje:** Python 3.12
+- **Scraping:** yt-dlp
+- **Analisis:** NotebookLM (notebooklm-py)
+- **Backtesting:** Strategy Quant
+- **Deploy:** Docker + VPS
 
 ## Documentacion
 
-- [Arquitectura](docs/architecture.md) — pipelines, agentes, stack, estructura de directorios
-- [Tools](docs/tools.md) — scripts de YouTube, slash commands
+- [Arquitectura](docs/architecture.md) — pipelines, estructura, flujo de datos
+- [Tools](docs/tools.md) — scripts y slash commands
 - [Schemas de datos](docs/data-schemas.md) — channels.yaml, strategies.yaml
-- [Docker](docs/docker.md) — build, ejecucion, volumenes, deploy
+- [Docker](docs/docker.md) — build, deploy, volumenes
