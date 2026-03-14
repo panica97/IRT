@@ -1,4 +1,9 @@
-# NotebookLM Agent
+---
+name: notebooklm-analyst
+description: Analyze YouTube videos with NotebookLM and extract all trading strategies as structured YAML
+---
+
+# NotebookLM Analyst
 
 Uses NotebookLM to analyze YouTube videos and extract ALL possible trading strategies.
 
@@ -14,17 +19,16 @@ Uses NotebookLM to analyze YouTube videos and extract ALL possible trading strat
 
 ## Tools
 
-- `notebooklm create "Title" --json` — Create notebook (returns ID)
-- `notebooklm source add "<url>" -n <notebook_id>` — Add source
-- `notebooklm source wait <source_id> -n <notebook_id>` — Wait for processing
-- `notebooklm ask "<question>" -n <notebook_id>` — Query the notebook
-- `notebooklm delete <notebook_id> --yes` — Delete notebook
+```bash
+notebooklm create "Title" --json        # Create notebook (returns ID)
+notebooklm source add "<url>" -n <id>   # Add source
+notebooklm source wait <src_id> -n <id> # Wait for processing
+notebooklm ask "<question>" -n <id>     # Query the notebook
+notebooklm delete <id> --yes            # Delete notebook
+```
 
-## Agent Prompt
+## Rules
 
-You are the NotebookLM Analyst. Your task is to extract ALL trading strategies from the provided videos.
-
-Rules:
 - Create ONE notebook for the entire analysis session
 - Add ALL videos as sources and wait for them to be processed
 - First ask for a list of ALL strategies mentioned
@@ -60,7 +64,7 @@ If no strategies are found, return exactly: `NO_STRATEGIES_FOUND`
 
 ## Error Handling
 
-- If `notebooklm create` fails: report authentication/connection error, do not continue
-- If sources fail to process: retry once, then report and continue with those that did process
-- If no strategies are found: return `NO_STRATEGIES_FOUND`
+- `notebooklm create` fails: report authentication/connection error, do not continue
+- Sources fail to process: retry once, then report and continue with those that did process
+- No strategies found: return `NO_STRATEGIES_FOUND`
 - CRITICAL: Always run `notebooklm delete <notebook_id> --yes` before finishing

@@ -1,46 +1,63 @@
-# Jarvis — Multi-Agent Trading Research Pipeline
+# IRT (Ideas Research Team)
 
-## What is this project?
-
-Sistema multi-agente orquestado por Claude Code con dos áreas:
-
-- **Research Quant** — monitorea canales de YouTube de trading, extrae estrategias usando NotebookLM y las prepara para backtesting en Strategy Quant
-- **Code** — desarrollo, revisión y testing del proyecto
+Pipeline de investigación de estrategias de trading. Monitorea canales de YouTube, extrae estrategias con NotebookLM y las guarda para análisis.
 
 ## Stack
 
-- Claude Code CLI como motor de agentes
-- Python para herramientas y scripts
+- Claude Code CLI como orquestador
+- Python 3.12 para herramientas y scripts
 - Docker para desarrollo local y deploy en VPS
-- NotebookLM (vía skill) para extracción de estrategias
+- NotebookLM para extracción de estrategias
 
-## Project structure
+## Estructura
 
 ```
-agents/          Agentes especializados (cada uno con su CLAUDE.md)
-  research/      Pipeline de investigación quant
-  code/          Agentes de desarrollo
-tools/           Scripts Python ejecutables
-  youtube/       Búsqueda y scraping de YouTube (yt-dlp)
-  notebooklm/    Integración con NotebookLM
-  database/      Gestión de datos YAML
-config/          Configuración global
-data/            Datos persistentes
-  channels/      Base de datos de canales YouTube
-  strategies/    Estrategias extraídas
-  backtests/     Resultados de backtests
-queue/           Cola de tareas entre agentes
-.claude/         Skills y commands de Claude Code
+.claude/skills/         Skills del pipeline (cada una con SKILL.md)
+  _shared/              Convenciones compartidas del proyecto
+  research/             Orquestador del pipeline de investigación
+  yt-scraper/           Fetch videos por topic desde canales registrados
+  notebooklm/           API completa de NotebookLM
+  notebooklm-analyst/   Extracción de estrategias desde videos
+  db-manager/           Persistencia en YAML con deduplicación
+tools/                  Scripts Python ejecutables
+  youtube/              Búsqueda y scraping (yt-dlp)
+config/                 Configuración global
+data/                   Datos persistentes
+  channels/             Base de datos de canales YouTube (YAML)
+  strategies/           Estrategias extraídas (YAML)
+docs/                   Documentación del proyecto
+planes/                 Planes y roadmap (gitignored)
 ```
 
-## Conventions
+## Convenciones
 
-- Scripts se ejecutan como módulos: `python -m tools.youtube.search "query"`
-- Datos en YAML (channels, strategies). Resultados de backtest en JSON/CSV.
-- Cada agente tiene su propio `CLAUDE.md` con su rol e instrucciones.
-- Los slash commands (`/yt-search`, `/yt-channels`, `/notebooklm`) son la interfaz principal.
+- Scripts como módulos: `python -m tools.youtube.search "query"`
+- Datos en YAML (channels, strategies).
+- Slash commands (`/research`, `/notebooklm`) como interfaz principal.
 
-## How to run
+## Flujos de trabajo
+
+### Research (dominio del proyecto)
+
+Cuando el usuario pida investigar estrategias de trading, usar `/research <topic>`.
+Este flujo tiene su propio pipeline y NO pasa por SDD.
+El skill `/research` actúa como orquestador de research, lanzando sub-agentes para cada paso:
+
+```
+/research <topic>
+  1. yt-scraper         → videos recientes del topic
+  2. notebooklm-analyst → extracción de estrategias (YAML)
+  3. db-manager         → guardar con deduplicación
+```
+
+Parada temprana: `NO_VIDEOS_FOUND`, `NO_STRATEGIES_FOUND` detienen el pipeline.
+
+### Desarrollo (cambios al código del repo)
+
+Cuando el usuario pida cambios al código, features o refactors → usar SDD del global.
+Las skills SDD ya están disponibles vía `~/.claude/CLAUDE.md`.
+
+## Cómo ejecutar
 
 ```bash
 docker compose build

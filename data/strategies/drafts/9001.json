@@ -1,0 +1,141 @@
+{
+  "$schema": "./schema.json",
+  "strat_code": 9001,
+  "strat_name": "RTY_BB_MonthlyGov_1",
+  "active": false,
+  "tested": false,
+  "prod": false,
+  "symbol": "RTY",
+  "secType": "FUT",
+  "exchange": "CME",
+  "currency": "USD",
+  "multiplier": 50,
+  "minTick": 0.1,
+  "rolling_days": 5,
+  "process_freq": "1 day",
+  "trading_hours": null,
+  "UTC_tz": -6,
+
+  "ind_list": {
+    "1 day": [
+      {
+        "indicator": "PRICE",
+        "params": {
+          "price_1": "high",
+          "timePeriod_1": 1,
+          "indCode": "HIGH_1D"
+        }
+      },
+      {
+        "indicator": "BBANDS",
+        "params": {
+          "price_1": "close",
+          "timePeriod_1": 20,
+          "nbdevup": 2.0,
+          "nbdevdn": 2.0,
+          "indCode": "BB_20_2_1D"
+        }
+      },
+      {
+        "indicator": "ATR",
+        "params": {
+          "price_1": "high",
+          "price_2": "low",
+          "price_3": "close",
+          "timePeriod_1": 20,
+          "indCode": "ATR_20_1D_SL"
+        }
+      },
+      {
+        "indicator": "ATR",
+        "params": {
+          "price_1": "high",
+          "price_2": "low",
+          "price_3": "close",
+          "timePeriod_1": 20,
+          "indCode": "ATR_20_1D_TP"
+        }
+      }
+    ]
+  },
+
+  "long_conds": [
+    {
+      "cond_type": "cross_ind_relation",
+      "cond": "HIGH_1D crosses_below BBAND_upperband_1D",
+      "shift_1": 1,
+      "shift_2": 1,
+      "condCode": "long_1"
+    }
+  ],
+
+  "short_conds": [
+    {
+      "cond_type": "cross_ind_relation",
+      "cond": "HIGH_1D crosses_above BBAND_middleband_1D",
+      "shift_1": 1,
+      "shift_2": 1,
+      "condCode": "short_1"
+    }
+  ],
+
+  "exit_conds": [],
+
+  "max_shift": [1, "1 day"],
+  "max_timePeriod": 20,
+
+  "stop_loss_init": {
+    "indicator": true,
+    "indicator_params": {
+      "multiple": "_TODO",
+      "tf": "1 day",
+      "col": "ATR_20_1D_SL"
+    },
+    "pips": false,
+    "pips_params": {},
+    "percent": false,
+    "percent_params": {}
+  },
+  "take_profit_init": {
+    "indicator": true,
+    "indicator_params": {
+      "multiple": "_TODO",
+      "tf": "1 day",
+      "col": "ATR_20_1D_TP"
+    },
+    "pips": false,
+    "pips_params": {},
+    "percent": false,
+    "percent_params": {}
+  },
+  "stop_loss_mgmt": {
+    "breakeven": {
+      "action": false,
+      "profitRatio": 0.2
+    },
+    "trailing": {
+      "action": false,
+      "trailingRatio": 0.8
+    }
+  },
+  "order_params": {
+    "max_rpo": 1,
+    "min_volume": 1
+  },
+  "control_params": {
+    "strategy": 9001,
+    "strategy_filename": "9001.py",
+    "symbol": "RTY",
+    "start_date": "_TODO",
+    "end_date": "_TODO",
+    "timestamp": "_TODO",
+    "primary_timeframe": "1 day",
+    "slippage_amount": "_TODO",
+    "comm_per_contract": "_TODO"
+  },
+
+  "_notes": {
+    "monthly_governor": "La logica del Monthly Governor (pausar trading si P&L mensual > $8k long / $4k short o < -$3k) NO cabe en el schema de condiciones. Implementar como logica custom en 9001.py.",
+    "sl_tp_todo": "La estrategia original no define SL/TP por trade, solo targets mensuales. Definir multiple de ATR o desactivar (indicator: false)."
+  }
+}
