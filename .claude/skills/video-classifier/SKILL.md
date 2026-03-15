@@ -1,78 +1,56 @@
 ---
 name: video-classifier
-description: Classify YouTube video titles as strategy or irrelevant using Claude Haiku to filter before NotebookLM analysis
+description: Classify YouTube video titles as strategy or irrelevant -- the agent does this inline, no script or API needed
 ---
 
 # Video Classifier
 
-Classifies YouTube video titles to determine if they likely contain a trading strategy worth analyzing. Runs between yt-scraper and notebooklm-analyst (step 1.5 in the research pipeline).
+Classifies YouTube video titles to determine if they likely contain a trading strategy worth analyzing. This is step 1.5 in the research pipeline, between yt-scraper and notebooklm-analyst.
 
-## Tool
+The agent performs this classification directly by reading the titles -- no external script or API call is needed.
 
-```bash
-python -m tools.video_classifier '<json_array_of_videos>'
-```
+## Classification Criteria
 
-### Input format
+### strategy
 
-JSON array via first positional argument or stdin. Each video object must have:
+The title suggests concrete, replicable trading content:
 
-- `video_id` -- YouTube video ID
-- `title` -- video title
-- `url` -- full YouTube URL
-- `channel_name` -- source channel name
+- Specific trading strategies or systems
+- Backtesting results of a method
+- Step-by-step trading approaches
+- Indicator-based setups with clear rules
+- Price action patterns presented as a method
+- Algorithmic or automated trading methods
 
-Example:
+### irrelevant
 
-```bash
-python -m tools.video_classifier '[{"video_id":"abc123","title":"Building an RTY Breakout Strategy","url":"https://youtube.com/watch?v=abc123","channel_name":"TraderX"}]'
-```
+The title does NOT suggest a replicable strategy:
 
-Or via stdin:
-
-```bash
-echo '<json>' | python -m tools.video_classifier --stdin
-```
-
-### Optional parameters
-
-- `--stdin` -- read video JSON from stdin instead of positional argument
-- `--help` -- show usage information
+- Q&A sessions, interviews (unless about a specific strategy)
+- Vlogs, day-in-the-life content
+- Trading desk/setup tours
+- General market commentary or predictions
+- Motivational or mindset content
+- Broker/platform reviews, gear reviews
+- News recaps
+- Personal stories
 
 ## Rules
 
-- **Conservative classification**: when in doubt, classify as `strategy` (better to waste NotebookLM time than miss a strategy)
-- Batch all titles in ONE API call (cheaper and faster)
-- Maximum 50 titles per batch -- splits automatically if needed
-- If the Anthropic API call fails, fall back to classifying EVERYTHING as `strategy` (don't block the pipeline)
-- Requires `ANTHROPIC_API_KEY` environment variable
+- **Conservative**: when in doubt, classify as `strategy`. Better to waste NotebookLM time than miss a real strategy.
+- Output a simple list with each video's classification and a brief reason (one sentence).
 
 ## Output Format
 
-```yaml
-classified:
-  - video_id: "abc123"
-    title: "Building an RTY Breakout Strategy"
-    classification: strategy
-    reason: "Describes building a specific trading strategy"
-  - video_id: "def456"
-    title: "My Trading Desk Setup Tour 2026"
-    classification: irrelevant
-    reason: "Setup tour, no strategy content"
-summary:
-  total: 5
-  strategy: 3
-  irrelevant: 2
+For each video, produce:
+
+```
+- video_id: "abc123" | title: "Building an RTY Breakout Strategy" | classification: strategy | reason: Describes building a specific trading strategy
+- video_id: "def456" | title: "My Trading Desk Setup Tour 2026" | classification: irrelevant | reason: Setup tour, no strategy content
 ```
 
-The tool outputs JSON to stdout. Summary is printed to stderr.
+Then a summary line:
 
-- If all videos are irrelevant: the orchestrator decides whether to continue
-- If API fails: all videos classified as `strategy` with reason `"API fallback -- classified conservatively"`
-
-## Error Handling
-
-- `ANTHROPIC_API_KEY` not set: print warning to stderr, classify all as `strategy`
-- API call fails (network, rate limit, etc.): classify all as `strategy`, print error to stderr
-- Invalid input JSON: exit with code 1 and error message
-- Empty video list: return empty classified list with summary totals at 0
+```
+Classification complete: 5 videos -- 3 strategy, 2 irrelevant
+```

@@ -74,19 +74,16 @@ Si `DATABASE_URL` no esta configurado, usar fallback YAML: leer `data/research/h
 
 Clasifica los videos nuevos para filtrar los que no contienen estrategias de trading.
 
-Ejecuta:
+Clasifica cada titulo de video tu mismo, sin ejecutar ningun script. Para cada video, decide:
 
-```bash
-python -m tools.video_classifier '<json_array_of_videos>'
-```
+- `strategy`: el titulo sugiere una estrategia de trading concreta, sistema, metodo, backtest, algoritmo o setup con indicadores
+- `irrelevant`: setup tours, Q&As, vlogs, gear reviews, historias personales, comentario de mercado sin estrategia accionable
 
-Donde `<json_array_of_videos>` es un JSON con la lista de videos del Step 1 (cada uno con `video_id`, `url`, `channel`, etc.).
-
-El clasificador devuelve cada video con un campo `classification`: `"strategy"` o `"irrelevant"`.
+**Regla conservadora**: en caso de duda, clasificar como `strategy`.
 
 **Proceso**:
 1. Tomar los videos del Step 1
-2. Ejecutar el clasificador con la lista en formato JSON
+2. Clasificar cada titulo como `strategy` o `irrelevant` con una razon breve
 3. Separar videos en dos grupos: `strategy` e `irrelevant`
 4. Para los videos `irrelevant`, registrarlos en el historial de investigacion:
 
