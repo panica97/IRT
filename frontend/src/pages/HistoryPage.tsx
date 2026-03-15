@@ -45,10 +45,12 @@ function SessionGroup({
             </span>
             <span className="text-xs text-slate-400 ml-3">
               {session.started_at
-                ? new Date(session.started_at).toLocaleDateString('es-ES', {
+                ? new Date(session.started_at).toLocaleString('es-ES', {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
                   })
                 : '-'}
             </span>
