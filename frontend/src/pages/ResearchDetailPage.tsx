@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { getResearchSessionDetail } from '../services/research';
-import { getStrategies } from '../services/strategies';
+import { getStrategies, getStrategy } from '../services/strategies';
 import type { PipelineStep, ChannelProcessed, SessionVideo } from '../services/research';
+import type { Strategy } from '../types/strategy';
 import StatusBadge from '../components/common/StatusBadge';
+import StrategyDetail from '../components/strategies/StrategyDetail';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
 function formatDuration(seconds: number): string {
@@ -66,6 +68,8 @@ function StepStatusIcon({ status }: { status: PipelineStep['status'] }) {
 export default function ResearchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const sessionId = Number(id);
+  const [selectedIdea, setSelectedIdea] = useState<Strategy | null>(null);
+  const [loadingIdea, setLoadingIdea] = useState(false);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['research-session', sessionId],
@@ -78,6 +82,16 @@ export default function ResearchDetailPage() {
     queryFn: () => getStrategies({ session_id: sessionId }),
     enabled: !isNaN(sessionId),
   });
+
+  const handleIdeaClick = async (name: string) => {
+    setLoadingIdea(true);
+    try {
+      const detail = await getStrategy(name);
+      setSelectedIdea(detail);
+    } finally {
+      setLoadingIdea(false);
+    }
+  };
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -292,70 +306,81 @@ export default function ResearchDetailPage() {
         );
       })()}
 
-      {/* Ideas found, grouped by source video */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
-        <h2 className="text-sm font-semibold text-slate-300 mb-3">
-          Ideas encontradas ({strategies.length})
-        </h2>
-        {strategies.length > 0 ? (
-          <div className="space-y-4">
-            {(() => {
-              // Group ideas by first source video (or "Sin video")
-              const groups = new Map<string, { channel: string | null; ideas: typeof strategies }>();
-              for (const s of strategies) {
-                const videoKey = s.source_videos?.[0] ?? 'sin-video';
-                if (!groups.has(videoKey)) {
-                  groups.set(videoKey, { channel: s.source_channel, ideas: [] });
+      {/* Ideas found — detail view or grouped list */}
+      {selectedIdea ? (
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+          <StrategyDetail
+            strategy={selectedIdea}
+            onClose={() => setSelectedIdea(null)}
+          />
+        </div>
+      ) : (
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+          <h2 className="text-sm font-semibold text-slate-300 mb-3">
+            Ideas encontradas ({strategies.length})
+          </h2>
+          {loadingIdea && <LoadingSpinner />}
+          {strategies.length > 0 ? (
+            <div className="space-y-4">
+              {(() => {
+                const groups = new Map<string, { channel: string | null; ideas: typeof strategies }>();
+                for (const s of strategies) {
+                  const videoKey = s.source_videos?.[0] ?? 'sin-video';
+                  if (!groups.has(videoKey)) {
+                    groups.set(videoKey, { channel: s.source_channel, ideas: [] });
+                  }
+                  groups.get(videoKey)!.ideas.push(s);
                 }
-                groups.get(videoKey)!.ideas.push(s);
-              }
-              return Array.from(groups.entries()).map(([videoId, { channel, ideas }]) => (
-                <div key={videoId}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {videoId !== 'sin-video' ? (
-                      <a
-                        href={`https://www.youtube.com/watch?v=${videoId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary-400 hover:text-primary-300 font-medium"
-                      >
-                        {videoId}
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-500 font-medium">Sin video</span>
-                    )}
-                    {channel && (
-                      <span className="text-xs text-slate-500">/ {channel}</span>
-                    )}
-                    <span className="text-xs text-slate-600">({ideas.length})</span>
+                return Array.from(groups.entries()).map(([videoId, { channel, ideas }]) => (
+                  <div key={videoId}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {videoId !== 'sin-video' ? (
+                        <a
+                          href={`https://www.youtube.com/watch?v=${videoId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary-400 hover:text-primary-300 font-medium"
+                        >
+                          {videoId}
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-500 font-medium">Sin video</span>
+                      )}
+                      {channel && (
+                        <span className="text-xs text-slate-500">/ {channel}</span>
+                      )}
+                      <span className="text-xs text-slate-600">({ideas.length})</span>
+                    </div>
+                    <div className="space-y-1 ml-3">
+                      {ideas.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => handleIdeaClick(s.name)}
+                          className="w-full text-left flex items-center justify-between py-1.5 px-3 bg-slate-700/30 rounded hover:bg-slate-700/60 cursor-pointer transition-colors"
+                        >
+                          <div>
+                            <p className="text-sm text-white font-medium">{s.name}</p>
+                            {s.description && (
+                              <p className="text-xs text-slate-400 mt-0.5 truncate max-w-md">
+                                {s.description}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-slate-500 text-xs ml-2">{'\u203A'}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-1 ml-3">
-                    {ideas.map((s) => (
-                      <div
-                        key={s.id}
-                        className="flex items-center justify-between py-1.5 px-3 bg-slate-700/30 rounded"
-                      >
-                        <div>
-                          <p className="text-sm text-white font-medium">{s.name}</p>
-                          {s.description && (
-                            <p className="text-xs text-slate-400 mt-0.5 truncate max-w-md">
-                              {s.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">
-            No se encontraron ideas en esta sesion
-          </p>
-        )}
-      </div>
+                ));
+              })()}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">
+              No se encontraron ideas en esta sesion
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
