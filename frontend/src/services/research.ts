@@ -5,6 +5,7 @@ export interface SessionVideo {
   url: string;
   channel: string | null;
   strategies_found: number;
+  classification: string | null;
 }
 
 export interface PipelineStep {

@@ -5,6 +5,7 @@ export interface HistoryItem {
   topic: string | null;
   researched_at: string | null;
   strategies_found: number;
+  classification: string | null;
 }
 
 export interface HistoryResponse {

@@ -121,6 +121,9 @@ class ResearchHistory(Base):
         DateTime(timezone=True), server_default=text("now()")
     )
     strategies_found: Mapped[int] = mapped_column(Integer, default=0)
+    classification: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
+    )
 
     __table_args__ = (
         Index("uq_history_video_topic", "video_id", "topic_id", unique=True),

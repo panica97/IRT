@@ -68,7 +68,44 @@ Si `DATABASE_URL` no esta configurado, usar fallback YAML: leer `data/research/h
 
 **Si no hay videos**: Para el pipeline y devuelve `NO_VIDEOS_FOUND`.
 **Si todos los videos ya fueron investigados**: Para el pipeline y devuelve `NO_NEW_VIDEOS`.
-**Si hay videos nuevos**: Recoge las URLs para el Step 2.
+**Si hay videos nuevos**: Recoge las URLs para el Step 1.5.
+
+### Step 1.5: Video Classifier
+
+Clasifica los videos nuevos para filtrar los que no contienen estrategias de trading.
+
+Ejecuta:
+
+```bash
+python -m tools.video_classifier '<json_array_of_videos>'
+```
+
+Donde `<json_array_of_videos>` es un JSON con la lista de videos del Step 1 (cada uno con `video_id`, `url`, `channel`, etc.).
+
+El clasificador devuelve cada video con un campo `classification`: `"strategy"` o `"irrelevant"`.
+
+**Proceso**:
+1. Tomar los videos del Step 1
+2. Ejecutar el clasificador con la lista en formato JSON
+3. Separar videos en dos grupos: `strategy` e `irrelevant`
+4. Para los videos `irrelevant`, registrarlos en el historial de investigacion:
+
+```python
+from tools.db.session import sync_session_ctx
+from tools.db.research_repo import add_history, _resolve_topic_id
+
+with sync_session_ctx() as session:
+    topic_id = _resolve_topic_id(session, "<topic_slug>")
+    for video in irrelevant_videos:
+        add_history(session, video_id=video["video_id"], url=video["url"],
+                    channel_id=video.get("channel_id"), topic_id=topic_id,
+                    strategies_found=0, classification="irrelevant")
+```
+
+5. Pasar solo los videos `strategy` al Step 2
+
+**Si todos los videos son irrelevantes**: Para el pipeline y devuelve `NO_STRATEGIES_FOUND`.
+**Si hay videos strategy**: Continuar al Step 2 con esos videos.
 
 ### Step 2: NotebookLM Analyst
 

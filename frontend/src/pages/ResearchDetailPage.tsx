@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { getResearchSessionDetail } from '../services/research';
 import { getStrategies } from '../services/strategies';
-import type { PipelineStep, ChannelProcessed } from '../services/research';
+import type { PipelineStep, ChannelProcessed, SessionVideo } from '../services/research';
 import StatusBadge from '../components/common/StatusBadge';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
@@ -11,6 +12,45 @@ function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
+function ClassificationBadge({ classification }: { classification: string | null }) {
+  if (classification === 'irrelevant') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-600 text-slate-300">
+        irrelevant
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400">
+      strategy
+    </span>
+  );
+}
+
+function IrrelevantVideosSection({
+  videos,
+  renderTable,
+}: {
+  videos: SessionVideo[];
+  renderTable: (videos: SessionVideo[]) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+      >
+        <span className="transition-transform" style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          {'\u25B6'}
+        </span>
+        Videos irrelevantes ({videos.length})
+      </button>
+      {open && <div className="mt-3">{renderTable(videos)}</div>}
+    </div>
+  );
 }
 
 function StepStatusIcon({ status }: { status: PipelineStep['status'] }) {
@@ -171,11 +211,12 @@ export default function ResearchDetailPage() {
       )}
 
       {/* Videos processed */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
-        <h2 className="text-sm font-semibold text-slate-300 mb-3">
-          Videos procesados ({session.videos?.length ?? 0})
-        </h2>
-        {session.videos && session.videos.length > 0 ? (
+      {(() => {
+        const allVideos: SessionVideo[] = session.videos ?? [];
+        const strategyVideos = allVideos.filter((v) => v.classification !== 'irrelevant');
+        const irrelevantVideos = allVideos.filter((v) => v.classification === 'irrelevant');
+
+        const renderVideoTable = (videos: SessionVideo[]) => (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -187,12 +228,15 @@ export default function ResearchDetailPage() {
                     Canal
                   </th>
                   <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                    Clasificacion
+                  </th>
+                  <th className="text-left py-2 px-3 text-slate-400 font-medium">
                     Ideas
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {session.videos.map((v, i) => (
+                {videos.map((v, i) => (
                   <tr
                     key={`${v.video_id}-${i}`}
                     className="border-b border-slate-700/50 hover:bg-slate-700/30"
@@ -210,6 +254,9 @@ export default function ResearchDetailPage() {
                     <td className="py-2 px-3 text-slate-300">
                       {v.channel || '-'}
                     </td>
+                    <td className="py-2 px-3">
+                      <ClassificationBadge classification={v.classification} />
+                    </td>
                     <td className="py-2 px-3 text-slate-300">
                       {v.strategies_found}
                     </td>
@@ -218,12 +265,32 @@ export default function ResearchDetailPage() {
               </tbody>
             </table>
           </div>
-        ) : (
-          <p className="text-sm text-slate-500">
-            No se procesaron videos en esta sesion
-          </p>
-        )}
-      </div>
+        );
+
+        return (
+          <>
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-300 mb-3">
+                Videos procesados ({strategyVideos.length})
+              </h2>
+              {strategyVideos.length > 0 ? (
+                renderVideoTable(strategyVideos)
+              ) : (
+                <p className="text-sm text-slate-500">
+                  No se procesaron videos en esta sesion
+                </p>
+              )}
+            </div>
+
+            {irrelevantVideos.length > 0 && (
+              <IrrelevantVideosSection
+                videos={irrelevantVideos}
+                renderTable={renderVideoTable}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {/* Ideas found, grouped by source video */}
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
