@@ -226,6 +226,47 @@ async def list_drafts(
     return total, items
 
 
+async def get_drafts_by_strategy(
+    db: AsyncSession, strategy_name: str
+) -> list[dict[str, Any]]:
+    """Return all drafts linked to a strategy by name."""
+    result = await db.execute(
+        select(Strategy).where(Strategy.name == strategy_name)
+    )
+    strat = result.scalar_one_or_none()
+    if not strat:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Estrategia '{strategy_name}' no encontrada",
+        )
+
+    drafts_result = await db.execute(
+        select(Draft).where(Draft.strategy_id == strat.id).order_by(Draft.strat_code)
+    )
+    drafts = drafts_result.scalars().all()
+
+    items = []
+    for d in drafts:
+        symbol = None
+        if isinstance(d.data, dict):
+            instrument = d.data.get("instrument", {})
+            if isinstance(instrument, dict):
+                symbol = instrument.get("symbol")
+        items.append({
+            "strat_code": d.strat_code,
+            "strat_name": d.strat_name,
+            "symbol": symbol,
+            "active": d.active,
+            "tested": d.tested,
+            "prod": d.prod,
+            "todo_count": d.todo_count,
+            "todo_fields": d.todo_fields,
+            "data": d.data,
+        })
+
+    return items
+
+
 async def get_draft_by_code(
     db: AsyncSession, strat_code: int
 ) -> dict[str, Any]:

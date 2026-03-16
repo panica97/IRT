@@ -49,6 +49,11 @@ async def list_strategies(
 # NOTE: PATCH validate/unvalidate routes MUST come before /{strategy_name}
 # to avoid "validate"/"unvalidate" being captured as a strategy_name.
 
+@router.get("/{strategy_name}/drafts")
+async def get_drafts_by_strategy(strategy_name: str, db: AsyncSession = Depends(get_db)):
+    return await strategy_service.get_drafts_by_strategy(db, strategy_name)
+
+
 @router.patch("/{strategy_name}/validate", response_model=StrategyResponse)
 async def validate_strategy(strategy_name: str, db: AsyncSession = Depends(get_db)):
     return await strategy_service.validate_strategy(db, strategy_name)

@@ -37,6 +37,11 @@ export async function unvalidateStrategy(name: string): Promise<Strategy> {
   return data;
 }
 
+export async function getDraftsByStrategy(name: string): Promise<DraftDetail[]> {
+  const { data } = await api.get<DraftDetail[]>(`/strategies/${encodeURIComponent(name)}/drafts`);
+  return data;
+}
+
 export async function getDrafts(hasTodos?: boolean): Promise<DraftsResponse> {
   const params = hasTodos !== undefined ? `?has_todos=${hasTodos}` : '';
   const { data } = await api.get<DraftsResponse>(`/strategies/drafts${params}`);

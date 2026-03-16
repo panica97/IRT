@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { validateStrategy, unvalidateStrategy } from '../../services/strategies';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { validateStrategy, unvalidateStrategy, getDraftsByStrategy } from '../../services/strategies';
 import ConfirmDialog from '../common/ConfirmDialog';
+import DraftCard from './DraftCard';
 import type { Strategy } from '../../types/strategy';
 
 interface StrategyDetailProps {
@@ -30,6 +31,11 @@ export default function StrategyDetail({ strategy, onClose, onStatusChange }: St
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
   const queryClient = useQueryClient();
+
+  const { data: drafts } = useQuery({
+    queryKey: ['drafts-by-strategy', strategy.name],
+    queryFn: () => getDraftsByStrategy(strategy.name),
+  });
 
   const isIdea = strategy.status === 'idea';
 
@@ -153,6 +159,20 @@ export default function StrategyDetail({ strategy, onClose, onStatusChange }: St
               >
                 {vid.startsWith('http') ? new URL(vid).searchParams.get('v') || vid : vid}
               </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* IBKR Drafts */}
+      {drafts && drafts.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-slate-400 uppercase mb-2">
+            Propuestas IBKR ({drafts.length})
+          </h4>
+          <div className="space-y-2">
+            {drafts.map((draft) => (
+              <DraftCard key={draft.strat_code} draft={draft} />
             ))}
           </div>
         </div>

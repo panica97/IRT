@@ -1,9 +1,8 @@
-import type { DraftSummary } from '../../types/draft';
-import TodoBadge from '../common/TodoBadge';
+import { useState } from 'react';
+import type { DraftDetail } from '../../types/draft';
 
 interface DraftCardProps {
-  draft: DraftSummary;
-  onClick: () => void;
+  draft: DraftDetail;
 }
 
 function StatusTag({ label, active }: { label: string; active: boolean }) {
@@ -20,25 +19,67 @@ function StatusTag({ label, active }: { label: string; active: boolean }) {
   );
 }
 
-export default function DraftCard({ draft, onClick }: DraftCardProps) {
+export default function DraftCard({ draft }: DraftCardProps) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div
-      onClick={onClick}
-      className="bg-slate-800 border border-slate-700 rounded-lg p-4 cursor-pointer hover:border-slate-600 transition-colors"
-    >
-      <div className="flex items-start justify-between mb-2">
-        <div>
-          <span className="text-xs text-slate-500 font-mono">{draft.strat_code}</span>
-          <h3 className="text-sm font-semibold text-white">{draft.strat_name}</h3>
-          {draft.symbol && <span className="text-xs text-primary-400">{draft.symbol}</span>}
+    <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+      {/* Collapsed header — always visible */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-700/30 transition-colors"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-sm font-semibold text-white truncate">{draft.strat_name}</span>
+          <span className="text-xs font-mono text-slate-500 bg-slate-700/50 px-1.5 py-0.5 rounded shrink-0">
+            {draft.strat_code}
+          </span>
+          <span
+            className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
+              draft.todo_count > 0
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                : 'bg-green-500/20 text-green-400 border border-green-500/30'
+            }`}
+          >
+            {draft.todo_count > 0 ? `${draft.todo_count} TODOs` : 'Completo'}
+          </span>
         </div>
-        <TodoBadge count={draft.todo_count} />
-      </div>
-      <div className="flex items-center gap-2">
-        <StatusTag label="active" active={draft.active} />
-        <StatusTag label="tested" active={draft.tested} />
-        <StatusTag label="prod" active={draft.prod} />
-      </div>
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          <StatusTag label="active" active={draft.active} />
+          <StatusTag label="tested" active={draft.tested} />
+          <StatusTag label="prod" active={draft.prod} />
+          <span className="text-slate-500 text-xs ml-1">{expanded ? '\u25B2' : '\u25BC'}</span>
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="border-t border-slate-700 p-3 space-y-3">
+          {/* TODO fields list */}
+          {draft.todo_fields && draft.todo_fields.length > 0 && (
+            <div>
+              <h5 className="text-xs font-semibold text-amber-400 uppercase mb-1">Campos pendientes</h5>
+              <ul className="space-y-0.5">
+                {draft.todo_fields.map((field, i) => (
+                  <li key={i} className="text-xs text-amber-300/80 font-mono bg-amber-500/10 rounded px-2 py-1">
+                    {field}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Full data JSON */}
+          {draft.data && (
+            <div>
+              <h5 className="text-xs font-semibold text-slate-400 uppercase mb-1">Datos completos</h5>
+              <pre className="text-xs text-slate-300 bg-slate-900/50 rounded p-3 overflow-x-auto max-h-80 overflow-y-auto">
+                {JSON.stringify(draft.data, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
