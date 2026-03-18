@@ -88,15 +88,15 @@ export default function StrategyDetail({ strategy, onClose, onStatusChange }: St
             <button
               onClick={() => openConfirm({
                 targetStatus: 'validated',
-                title: 'Marcar como final',
-                message: 'Esta estrategia pasara directamente a la pestana Finales.',
-                confirmLabel: 'Marcar como final',
+                title: 'Marcar como estrategia',
+                message: 'Esta estrategia pasara directamente a la pestana de Estrategias.',
+                confirmLabel: 'Marcar como estrategia',
                 confirmVariant: 'success',
               })}
               disabled={updating}
               className="px-3 py-1 text-sm rounded transition-colors disabled:opacity-50 text-white bg-green-600 hover:bg-green-700"
             >
-              Marcar como final
+              Marcar como estrategia
             </button>
           </>
         );
@@ -106,15 +106,15 @@ export default function StrategyDetail({ strategy, onClose, onStatusChange }: St
             <button
               onClick={() => openConfirm({
                 targetStatus: 'validated',
-                title: 'Promover a final',
-                message: 'Esta idea pasara a la pestana Finales.',
+                title: 'Promover a estrategia',
+                message: 'Esta idea pasara a la pestana de Estrategias.',
                 confirmLabel: 'Promover',
                 confirmVariant: 'success',
               })}
               disabled={updating}
               className="px-3 py-1 text-sm rounded transition-colors disabled:opacity-50 text-white bg-green-600 hover:bg-green-700"
             >
-              Promover a final
+              Promover a estrategia
             </button>
             <button
               onClick={() => openConfirm({

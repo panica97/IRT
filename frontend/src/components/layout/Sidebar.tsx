@@ -5,7 +5,7 @@ const navItems = [
   { to: '/research', label: 'Investigaciones', icon: '\uD83D\uDD2C' },
   { to: '/channels', label: 'Canales', icon: '\u25B6' },
   { to: '/history', label: 'Historial', icon: '\u23F0' },
-  { to: '/strategies', label: 'Estrategias', icon: '\u2605' },
+  { to: '/strategies', label: 'Resultados', icon: '\u2605' },
   { to: '/live', label: 'Live', icon: '\u26A1' },
 ];
 

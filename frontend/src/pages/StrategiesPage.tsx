@@ -7,7 +7,7 @@ import StrategyDetail from '../components/strategies/StrategyDetail';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import type { Strategy } from '../types/strategy';
 
-type Tab = 'pending' | 'ideas' | 'finales';
+type Tab = 'pending' | 'ideas' | 'estrategias';
 
 export default function StrategiesPage() {
   const [tab, setTab] = useState<Tab>('pending');
@@ -47,7 +47,7 @@ export default function StrategiesPage() {
   });
 
   // Finales tab: strategies with status='validated'
-  const { data: finalesData, isLoading: loadingFinales } = useQuery({
+  const { data: estrategiasData, isLoading: loadingFinales } = useQuery({
     queryKey: ['validated-strategies', search, channelFilter, sessionFilter],
     queryFn: () => getStrategies({
       search: search || undefined,
@@ -55,7 +55,7 @@ export default function StrategiesPage() {
       session_id: sessionFilter ? Number(sessionFilter) : undefined,
       status: 'validated',
     }),
-    enabled: tab === 'finales',
+    enabled: tab === 'estrategias',
   });
 
   const handleStrategyClick = async (name: string) => {
@@ -69,7 +69,7 @@ export default function StrategiesPage() {
   };
 
   // Collect unique channels from the active tab's data
-  const activeData = tab === 'pending' ? pendingData : tab === 'ideas' ? ideasData : finalesData;
+  const activeData = tab === 'pending' ? pendingData : tab === 'ideas' ? ideasData : estrategiasData;
   const channels = Array.from(
     new Set(
       (activeData?.strategies ?? [])
@@ -83,12 +83,12 @@ export default function StrategiesPage() {
   const emptyMessages: Record<Tab, string> = {
     pending: 'No hay estrategias pendientes de revision',
     ideas: 'No hay ideas todavia. Valida estrategias desde la pestana Pendientes.',
-    finales: 'No hay estrategias finales todavia',
+    estrategias: 'No hay estrategias validadas todavia',
   };
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-white">Estrategias</h1>
+      <h1 className="text-xl font-bold text-white">Resultados</h1>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-800 border border-slate-700 rounded-lg p-1 w-fit">
@@ -109,12 +109,12 @@ export default function StrategiesPage() {
           Ideas
         </button>
         <button
-          onClick={() => { setTab('finales'); setSelectedStrategy(null); }}
+          onClick={() => { setTab('estrategias'); setSelectedStrategy(null); }}
           className={`px-4 py-1.5 text-sm rounded transition-colors ${
-            tab === 'finales' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+            tab === 'estrategias' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
           }`}
         >
-          Finales
+          Estrategias
         </button>
       </div>
 
@@ -168,7 +168,7 @@ export default function StrategiesPage() {
           <p className="text-sm text-slate-400">
             {(activeData?.total ?? 0) === 0
               ? emptyMessages[tab]
-              : `Total: ${activeData?.total ?? 0} ${tab === 'pending' ? 'pendientes' : tab === 'ideas' ? 'ideas' : 'finales'}`}
+              : `Total: ${activeData?.total ?? 0} ${tab === 'pending' ? 'pendientes' : tab === 'ideas' ? 'ideas' : 'estrategias validadas'}`}
           </p>
           <div className="space-y-3">
             {(activeData?.strategies ?? []).map((s) => (
