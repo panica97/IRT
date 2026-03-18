@@ -1,0 +1,76 @@
+import type { DraftData } from '../../../types/draft-data';
+interface Props {
+  data: DraftData;
+  todoFields: string[];
+}
+
+const SEC_TYPE_COLORS: Record<string, string> = {
+  FUT: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  STK: 'bg-green-500/20 text-green-300 border-green-500/30',
+  OPT: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  CASH: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+};
+
+export default function InstrumentSection({ data }: Props) {
+  const secTypeColor = SEC_TYPE_COLORS[data.secType] ?? 'bg-slate-600/30 text-slate-300 border-slate-500/30';
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Symbol - large badge */}
+      <div className="col-span-2 sm:col-span-1">
+        <div className="text-xs text-slate-500 mb-1">Symbol</div>
+        <span className="inline-block text-lg font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-3 py-1">
+          {data.symbol}
+        </span>
+      </div>
+
+      {/* SecType */}
+      <div>
+        <div className="text-xs text-slate-500 mb-1">Tipo</div>
+        <span className={`inline-block text-xs font-medium px-2 py-1 rounded border ${secTypeColor}`}>
+          {data.secType}
+        </span>
+      </div>
+
+      {/* Exchange */}
+      <div>
+        <div className="text-xs text-slate-500 mb-1">Exchange</div>
+        <span className="text-sm text-slate-200">{data.exchange}</span>
+      </div>
+
+      {/* Currency */}
+      <div>
+        <div className="text-xs text-slate-500 mb-1">Moneda</div>
+        <span className="text-sm text-slate-200">{data.currency}</span>
+      </div>
+
+      {/* Multiplier */}
+      <div>
+        <div className="text-xs text-slate-500 mb-1">Multiplicador</div>
+        <span className="text-sm text-slate-200">{data.multiplier}</span>
+      </div>
+
+      {/* MinTick */}
+      <div>
+        <div className="text-xs text-slate-500 mb-1">Min Tick</div>
+        <span className="text-sm text-slate-200">{data.minTick}</span>
+      </div>
+
+      {/* Timeframe */}
+      <div>
+        <div className="text-xs text-slate-500 mb-1">Timeframe</div>
+        <span className="inline-block text-xs font-medium px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+          {data.process_freq ?? 'N/A'}
+        </span>
+      </div>
+
+      {/* Process freq / rolling */}
+      {data.rolling_days != null && (
+        <div>
+          <div className="text-xs text-slate-500 mb-1">Rolling</div>
+          <span className="text-sm text-slate-200">{data.rolling_days} dias</span>
+        </div>
+      )}
+    </div>
+  );
+}

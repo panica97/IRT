@@ -11,6 +11,7 @@ yt-scraper -> notebooklm-analyst -> translator -> db-manager.
 ## Input
 
 - `topic` -- el topic a investigar (debe existir en `data/channels/channels.yaml`)
+- `save_conversations` -- (optional, default false) si true, guardar el historial de conversaciones con NotebookLM antes del cleanup
 
 ## Early Stop Signals
 
@@ -139,7 +140,29 @@ El skill se encarga de:
 
 ### Step 4: Cleanup y registro de historial
 
-Borrar el notebook de NotebookLM. SIEMPRE ejecutar este paso, incluso si los pasos anteriores fallan.
+**Si `save_conversations` es true**, guardar el historial ANTES de borrar el notebook:
+
+```bash
+# Capturar el historial completo de la conversacion
+notebooklm history -n <notebook_id>
+```
+
+Guardar la salida en `data/research/conversations/<topic_slug>_<YYYY-MM-DD>.md` con el formato:
+
+```markdown
+# Conversacion NotebookLM: <topic>
+Fecha: <YYYY-MM-DD>
+Notebook ID: <notebook_id>
+Videos analizados: <lista de URLs>
+
+---
+
+<output del comando notebooklm history>
+```
+
+Crear el directorio `data/research/conversations/` si no existe.
+
+**Despues**, borrar el notebook. SIEMPRE ejecutar el delete, incluso si los pasos anteriores fallan.
 
 ```bash
 notebooklm delete <notebook_id> --yes
