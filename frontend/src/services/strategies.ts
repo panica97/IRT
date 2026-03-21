@@ -55,3 +55,14 @@ export async function getDraft(stratCode: number): Promise<DraftDetail> {
   const { data } = await api.get<DraftDetail>(`/strategies/drafts/${stratCode}`);
   return data;
 }
+
+export async function updateDraftData(
+  stratCode: number,
+  data: Record<string, unknown>,
+): Promise<DraftDetail> {
+  const { data: response } = await api.put<DraftDetail>(
+    `/strategies/drafts/${stratCode}/data`,
+    { data },
+  );
+  return response;
+}

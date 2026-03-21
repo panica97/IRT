@@ -6,11 +6,16 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import get_db, verify_api_key
+from pydantic import BaseModel
 from api.models.schemas.draft import DraftsListResponse, FillTodoRequest
 from api.models.schemas.strategy import StrategiesListResponse, StatusUpdate, StrategyResponse
 from api.services import strategy_service
 
 router = APIRouter(prefix="/api/strategies", tags=["strategies"], dependencies=[Depends(verify_api_key)])
+
+
+class UpdateDraftDataRequest(BaseModel):
+    data: dict
 
 
 # NOTE: The /drafts routes MUST come before /{strategy_name} to avoid
@@ -38,6 +43,15 @@ async def fill_todo(
     db: AsyncSession = Depends(get_db),
 ):
     return await strategy_service.fill_todo(db, strat_code, body.path, body.value)
+
+
+@router.put("/drafts/{strat_code}/data")
+async def update_draft_data(
+    strat_code: int,
+    body: UpdateDraftDataRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    return await strategy_service.update_draft_data(db, strat_code, body.data)
 
 
 @router.get("", response_model=StrategiesListResponse)

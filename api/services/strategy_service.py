@@ -178,6 +178,42 @@ async def set_strategy_status(
 # Drafts
 # ---------------------------------------------------------------------------
 
+def _validate_draft_structure(data: dict[str, Any]) -> None:
+    """Validate required top-level keys and types in draft data.
+
+    Raises HTTPException(422) with a detail message on failure.
+    """
+    errors: list[str] = []
+
+    # Required string keys
+    required_strings = ["strat_name", "symbol", "secType", "exchange", "currency"]
+    for key in required_strings:
+        if key not in data:
+            errors.append(f"Falta clave requerida: '{key}'")
+        elif not isinstance(data[key], str):
+            errors.append(f"'{key}' debe ser string, recibido {type(data[key]).__name__}")
+
+    # Required int key
+    if "strat_code" not in data:
+        errors.append("Falta clave requerida: 'strat_code'")
+    elif not isinstance(data["strat_code"], int):
+        errors.append(f"'strat_code' debe ser int, recibido {type(data['strat_code']).__name__}")
+
+    # Optional keys with type constraints
+    if "ind_list" in data and not isinstance(data["ind_list"], dict):
+        errors.append(f"'ind_list' debe ser dict, recibido {type(data['ind_list']).__name__}")
+
+    for cond_key in ["long_conds", "short_conds", "exit_conds"]:
+        if cond_key in data and not isinstance(data[cond_key], list):
+            errors.append(f"'{cond_key}' debe ser list, recibido {type(data[cond_key]).__name__}")
+
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "Estructura de draft invalida", "errors": errors},
+        )
+
+
 def _extract_todo_fields(
     data: Any, prefix: str = ""
 ) -> list[dict[str, str | None]]:
@@ -315,6 +351,36 @@ async def get_draft_by_code(
     }
 
 
+async def update_draft_data(
+    db: AsyncSession, strat_code: int, data: dict[str, Any]
+) -> dict[str, Any]:
+    """Replace entire draft data blob with structural validation."""
+    _validate_draft_structure(data)
+
+    result = await db.execute(
+        select(Draft).where(Draft.strat_code == strat_code)
+    )
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Draft con strat_code {strat_code} no encontrado",
+        )
+
+    draft.data = data
+
+    # Recalculate TODO metadata
+    todo_details = _extract_todo_fields(data)
+    todo_paths = [t["path"] for t in todo_details]
+    draft.todo_fields = todo_paths
+    draft.todo_count = len(todo_paths)
+
+    await db.commit()
+    await db.refresh(draft)
+
+    return await get_draft_by_code(db, strat_code)
+
+
 # ---------------------------------------------------------------------------
 # Fill TODO
 # ---------------------------------------------------------------------------
@@ -413,12 +479,6 @@ async def fill_todo(
                 detail=f"Path '{path}' no existe en data",
             )
         current_value = parent[final_key]
-
-    if not (isinstance(current_value, str) and "_TODO" in current_value):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"El valor en '{path}' no contiene '_TODO' (valor actual: {current_value!r})",
-        )
 
     # Apply the new value
     if isinstance(final_key, int):

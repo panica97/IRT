@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DraftDetail } from '../../types/draft';
 import { parseDraftData, getTodoFieldsForSection, humanizeFieldPath } from './draft-utils';
+import { updateDraftData } from '../../services/strategies';
 import SectionPanel from './draft-sections/SectionPanel';
 import InstrumentSection from './draft-sections/InstrumentSection';
 import IndicatorsSection from './draft-sections/IndicatorsSection';
@@ -13,7 +15,53 @@ interface DraftViewerProps {
 
 export default function DraftViewer({ draft }: DraftViewerProps) {
   const [showJson, setShowJson] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState<string | null>(null);
   const preRef = useRef<HTMLPreElement>(null);
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      updateDraftData(draft.strat_code, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['draft', draft.strat_code] });
+      queryClient.invalidateQueries({ queryKey: ['drafts'] });
+      setEditMode(false);
+      setJsonError(null);
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail;
+      if (typeof detail === 'object' && detail?.errors) {
+        setJsonError(detail.errors.join('\n'));
+      } else if (typeof detail === 'string') {
+        setJsonError(detail);
+      } else {
+        setJsonError('Error al guardar los cambios');
+      }
+    },
+  });
+
+  const handleEditJson = () => {
+    setJsonText(JSON.stringify(draft.data, null, 2));
+    setJsonError(null);
+    setEditMode(true);
+  };
+
+  const handleSaveJson = () => {
+    try {
+      const parsed = JSON.parse(jsonText);
+      setJsonError(null);
+      mutation.mutate(parsed);
+    } catch (e) {
+      setJsonError(`JSON invalido: ${(e as Error).message}`);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditMode(false);
+    setJsonError(null);
+  };
 
   const parsed = parseDraftData(draft.data);
   const todoFields = draft.todo_fields ?? [];
@@ -123,18 +171,62 @@ export default function DraftViewer({ draft }: DraftViewerProps) {
         </div>
       )}
 
-      {/* JSON fallback toggle */}
+      {/* JSON view / edit toggle */}
       <div>
-        <button
-          onClick={() => setShowJson(!showJson)}
-          className="text-xs text-text-muted hover:text-text-secondary transition-colors underline"
-        >
-          {showJson ? 'Ocultar JSON' : 'Ver JSON'}
-        </button>
-        {showJson && (
-          <pre ref={preRef} className="mt-2 text-xs text-text-secondary bg-surface-0/50 rounded p-3 overflow-x-auto max-h-80 overflow-y-auto">
-            {JSON.stringify(draft.data, null, 2)}
-          </pre>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowJson(!showJson)}
+            className="text-xs text-text-muted hover:text-text-secondary transition-colors underline"
+          >
+            {showJson ? 'Ocultar JSON' : 'Ver JSON'}
+          </button>
+          {!editMode && (
+            <button
+              onClick={handleEditJson}
+              className="text-xs text-accent hover:text-accent/80 transition-colors underline"
+            >
+              Editar JSON
+            </button>
+          )}
+        </div>
+
+        {editMode ? (
+          <div className="mt-2 space-y-2">
+            <textarea
+              value={jsonText}
+              onChange={(e) => setJsonText(e.target.value)}
+              className="w-full font-mono text-xs bg-surface-2 text-text-primary border border-border rounded p-3 resize-y focus:outline-none focus:ring-1 focus:ring-accent"
+              style={{ minHeight: '400px' }}
+              spellCheck={false}
+            />
+            {jsonError && (
+              <p className="text-xs text-danger bg-danger/10 border border-danger/20 rounded px-2 py-1 whitespace-pre-wrap">
+                {jsonError}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveJson}
+                disabled={mutation.isPending}
+                className="text-xs px-3 py-1 bg-accent text-surface-0 rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
+              >
+                {mutation.isPending ? 'Guardando...' : 'Guardar'}
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                disabled={mutation.isPending}
+                className="text-xs px-3 py-1 bg-surface-2 text-text-secondary border border-border rounded hover:bg-surface-3 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          showJson && (
+            <pre ref={preRef} className="mt-2 text-xs text-text-secondary bg-surface-0/50 rounded p-3 overflow-x-auto max-h-80 overflow-y-auto">
+              {JSON.stringify(draft.data, null, 2)}
+            </pre>
+          )
         )}
       </div>
     </div>
