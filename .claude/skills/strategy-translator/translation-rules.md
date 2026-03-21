@@ -3,6 +3,8 @@
 Reglas de mapeo aprendidas para traducir estrategias de lenguaje natural a JSON del motor de trading.
 Estas reglas se acumulan con el feedback del usuario.
 
+**Fuente de verdad**: `docs/STRATEGY_FILE_REFERENCE.md` — especificacion completa del motor IBKR. Leer SIEMPRE antes de generar drafts.
+
 ## Reglas de filtrado (skip)
 
 - **Ideas sin logica concreta de entrada/salida** → skip (log como "too vague for translation")
@@ -29,8 +31,18 @@ Estas reglas se acumulan con el feedback del usuario.
 
 ## Reglas de mapeo (feedback del usuario)
 
-<!-- Se iran anadiendo reglas aqui a medida que el usuario corrija propuestas -->
-<!-- Formato: -->
-<!-- - **Regla**: descripcion clara -->
-<!--   **Origen**: que correccion del usuario la genero -->
-<!--   **Ejemplo**: antes → despues -->
+- **El campo `cond` debe ser inequivoco cuando se compara el mismo indicador a diferentes shifts.**
+  **Origen**: El translator genero `"LOW_6H < LOW_6H"` con shift_1=0, shift_2=1. Parece que compara algo consigo mismo.
+  **Ejemplo**: `"LOW_6H < LOW_6H"` → `"LOW_6H(0) < LOW_6H(1)"`
+
+- **NO usar `group` en `long_conds` ni `short_conds`.**
+  **Origen**: El translator puso `"group": 1` en las tres entry conditions de una divergencia RSI. Las entry conditions son SIEMPRE ALL AND, los groups solo aplican a `exit_conds`.
+  **Ejemplo**: `{"cond_type": "price_relation", "cond": "...", "group": 1}` → quitar `"group"`
+
+- **Shift values deben ser >= 1, nunca 0.**
+  **Origen**: Shift 0 no existe en el motor — la barra actual aun no se ha formado. El minimo es shift 1 (ultima barra completada).
+  **Ejemplo**: `"shift_1": 0` → `"shift_1": 1`
+
+- **Indicadores multi-output deben usar indCode con prefijo `MULT_`.**
+  **Origen**: Documentacion del motor (`docs/STRATEGY_FILE_REFERENCE.md`).
+  **Ejemplo**: BBANDS con `"indCode": "BB_20_2_1D"` → `"indCode": "MULT_1D"` (genera BBAND_upperband_1D, etc.)

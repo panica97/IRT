@@ -71,6 +71,27 @@ export default function InstrumentSection({ data }: Props) {
           <span className="text-sm text-slate-200">{data.rolling_days} dias</span>
         </div>
       )}
+
+      {/* UTC Timezone */}
+      {data.UTC_tz != null && (
+        <div>
+          <div className="text-xs text-slate-500 mb-1">Timezone</div>
+          <span className="text-sm text-slate-200">UTC{data.UTC_tz >= 0 ? '+' : ''}{data.UTC_tz}</span>
+        </div>
+      )}
+
+      {/* Trading Hours */}
+      {data.trading_hours != null && (
+        <div className="col-span-2">
+          <div className="text-xs text-slate-500 mb-1">Horario Trading</div>
+          <span className="text-sm text-slate-200">
+            {'mode' in data.trading_hours
+              ? `Entradas: ${data.trading_hours.entries.start}-${data.trading_hours.entries.end} | Salidas: ${data.trading_hours.exits.start}-${data.trading_hours.exits.end}`
+              : `${data.trading_hours.start} - ${data.trading_hours.end}`
+            }
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -90,8 +90,14 @@ export default function DraftViewer({ draft }: DraftViewerProps) {
         </SectionPanel>
 
         <SectionPanel id="conditions" title="Condiciones" icon={'\u2699\uFE0F'}>
-          <ConditionsSection data={parsed} todoFields={getTodoFieldsForSection(todoFields, 'conditions')} />
+          <ConditionsSection data={parsed} todoFields={getTodoFieldsForSection(todoFields, 'conditions')} sectionType="entry" />
         </SectionPanel>
+
+        {parsed.exit_conds.length > 0 && (
+          <SectionPanel id="exit" title="Salida" icon={'\uD83D\uDEAA'}>
+            <ConditionsSection data={parsed} todoFields={getTodoFieldsForSection(todoFields, 'conditions')} sectionType="exit" />
+          </SectionPanel>
+        )}
 
         <SectionPanel id="risk" title="Riesgo (SL/TP)" icon={'\uD83D\uDEE1\uFE0F'}>
           <RiskSection data={parsed} todoFields={getTodoFieldsForSection(todoFields, 'risk')} />

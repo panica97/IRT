@@ -23,13 +23,20 @@ export function isTodo(value: unknown): boolean {
 /** Indicator type categories for color coding */
 const INDICATOR_CATEGORIES: Record<string, string> = {
   // Trend
-  SMA: 'trend', EMA: 'trend', DEMA: 'trend', TEMA: 'trend', WMA: 'trend', BBANDS: 'trend',
+  SMA: 'trend', EMA: 'trend', DEMA: 'trend', TEMA: 'trend', WMA: 'trend',
+  ADX: 'trend', PLUS_DI: 'trend', MINUS_DI: 'trend', SUPERTREND: 'trend', ICHIMOKU: 'trend',
   // Oscillators
   RSI: 'oscillator', STOCH: 'oscillator', MACD: 'oscillator', CCI: 'oscillator', WILLR: 'oscillator', MFI: 'oscillator',
+  ULTOSC: 'oscillator',
   // Volatility
-  ATR: 'volatility', NATR: 'volatility', TRANGE: 'volatility',
+  ATR: 'volatility', NATR: 'volatility', TRANGE: 'volatility', BBANDS: 'volatility',
+  KELTNER_CHANNELS: 'volatility', ULCER_INDEX: 'volatility',
   // Price
   PRICE: 'price',
+  // Custom
+  PMax: 'custom', PMin: 'custom', BEARS_POWER: 'custom', SRPERCENTRANK: 'custom', price_formula: 'custom',
+  // Data
+  DATA: 'data',
 };
 
 export function getIndicatorCategory(type: string): string {
@@ -43,6 +50,8 @@ export function getIndicatorColors(category: string): string {
     case 'oscillator': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
     case 'volatility': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
     case 'price': return 'bg-slate-600/30 text-slate-300 border-slate-500/30';
+    case 'custom': return 'bg-teal-500/20 text-teal-300 border-teal-500/30';
+    case 'data': return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     default: return 'bg-slate-600/30 text-slate-300 border-slate-500/30';
   }
 }
@@ -55,8 +64,12 @@ export function formatStopLevel(params: DraftData['stop_loss_init']): string {
     if (isTodo(mult)) return `${col} x _TODO`;
     return `${col} x ${mult}`;
   }
-  if (params.pips && params.pips_params?.pips != null) {
-    return `${params.pips_params.pips} pips`;
+  if (params.pips) {
+    const pv = params.pips_params?.pip_value ?? params.pips_params?.pips;
+    const ps = params.pips_params?.pip_size;
+    if (pv != null) {
+      return ps != null ? `${pv} pips (x${ps})` : `${pv} pips`;
+    }
   }
   if (params.percent && params.percent_params?.percent != null) {
     return `${params.percent_params.percent}%`;

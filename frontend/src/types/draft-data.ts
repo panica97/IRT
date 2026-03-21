@@ -39,7 +39,9 @@ export interface StopLossParams {
   };
   pips: boolean;
   pips_params: {
-    pips?: number | string;
+    pips?: number | string;      // backward compat
+    pip_value?: number | string;
+    pip_size?: number | string;
   };
   percent: boolean;
   percent_params: {
@@ -75,6 +77,19 @@ export interface OrderParams {
   min_volume: number;
 }
 
+export interface TradingHoursLegacy {
+  start: string;
+  end: string;
+}
+
+export interface TradingHoursGranular {
+  mode: 'granular';
+  entries: { start: string; end: string };
+  exits: { start: string; end: string };
+}
+
+export type TradingHours = TradingHoursLegacy | TradingHoursGranular;
+
 export interface DraftData {
   strat_code: number;
   strat_name: string;
@@ -89,7 +104,7 @@ export interface DraftData {
   minTick: number;
   rolling_days?: number;
   process_freq?: string;
-  trading_hours?: string | null;
+  trading_hours?: TradingHours | null;
   UTC_tz?: number;
   ind_list: IndList;
   long_conds: Condition[];

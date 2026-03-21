@@ -51,10 +51,11 @@ For each idea with concrete entry/exit logic, generate **2-4 JSON draft variants
 
 ### Reference Files
 
-Read these files from this skill's own directory (`.claude/skills/strategy-translator/`):
-- `schema.json` -- JSON schema of the trading engine (follow strictly)
-- `examples/*.json` -- real strategies as few-shot for exact format
-- `translation-rules.md` -- filtering and mapping rules
+Read in this order:
+1. `docs/STRATEGY_FILE_REFERENCE.md` -- **primary source of truth**. Complete specification of every field, indicator, condition type, shift behavior, and entry/exit logic. Read the Conditions section (section 5) carefully before writing any conditions.
+2. `examples/*.json` (in this skill's directory) -- real strategies as few-shot for exact format
+3. `translation-rules.md` (in this skill's directory) -- filtering and mapping rules
+4. `schema.json` (in this skill's directory) -- JSON schema for validation (but STRATEGY_FILE_REFERENCE.md takes precedence for semantics)
 
 ### Filtering (skip)
 
@@ -63,11 +64,34 @@ Discard ideas that do NOT have concrete entry/exit logic:
 - Historical/abandoned approaches -> skip
 - Meta-strategies (portfolio management, prop firm scaling, trading psychology) -> skip
 
+### Critical Rules for Conditions
+
+These rules come from the trading engine spec (`docs/STRATEGY_FILE_REFERENCE.md`). Getting them wrong produces invalid strategies.
+
+**Entry vs Exit logic**:
+- `long_conds` and `short_conds`: ALL conditions are ANDed together. Do NOT use `group` field in entry conditions.
+- `exit_conds`: use `group` for OR logic between groups (AND within same group). Conditions without `group` act as standalone singletons (OR). Use `"mode": "force"` for conditions that trigger immediate exit regardless of groups.
+
+**Shifts**:
+- `shift_1` applies to the LEFT operand, `shift_2` applies to the RIGHT operand
+- Shift values must be >= 1. Shift 0 does not exist — the current bar has not completed yet
+- shift 1 = most recent completed bar, shift 2 = bar before that, etc.
+- For `num_relation` (indicator vs number): only `shift_1` matters, `shift_2` is ignored
+
+**The `cond` string must be unambiguous**:
+- When comparing the same indicator at different shifts, include the shift in the string: `"LOW_6H(0) < LOW_6H(1)"` — never write `"LOW_6H < LOW_6H"`
+- For compound expressions, shifts apply to ALL indicators on that side: `"abs(CLOSE_6h - OPEN_6h) < 0.2 * ATR_20_6h"` with shift_1=0 means CLOSE and OPEN both at shift 0
+- Cross operators use `above` / `bellow` (note: `bellow` is the engine spelling, not `below`)
+
+**Multi-output indicators** (MACD, STOCH, BBANDS, KELTNER, ICHIMOKU):
+- `indCode` MUST start with `"MULT_"` followed by a suffix
+- Output columns are auto-named using the suffix (e.g., `MULT_4h` → `stoch_slowk_4h`, `BBAND_upperband_4h`)
+
 ### Creative Process
 
 For each idea with actionable entry/exit rules:
 
-1. Read `schema.json` and the examples in `examples/` to understand the exact format
+1. Read `docs/STRATEGY_FILE_REFERENCE.md` (especially sections 4 and 5) and the examples in `examples/` to understand the exact format
 2. Analyze the idea: what indicators? what entry/exit conditions?
 3. Think about variants -- differences can be:
    - **Timeframe**: e.g., 240min vs 360min vs daily
