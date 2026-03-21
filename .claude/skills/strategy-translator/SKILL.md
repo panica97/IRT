@@ -87,6 +87,12 @@ These rules come from the trading engine spec (`docs/STRATEGY_FILE_REFERENCE.md`
 - `indCode` MUST start with `"MULT_"` followed by a suffix
 - Output columns are auto-named using the suffix (e.g., `MULT_4h` → `stoch_slowk_4h`, `BBAND_upperband_4h`)
 
+**Scope: pure strategies only**:
+- The translator generates ONLY the core logic: indicators for entry/exit conditions, entry conditions, and exit conditions
+- Do NOT generate `stop_loss_init`, `take_profit_init`, or `stop_loss_mgmt` — leave them all as default (all `false`, empty params). SL/TP and risk management are added manually later
+- Do NOT create indicators dedicated to SL/TP (e.g., ATR_SL, ATR_TP) — only indicators needed by conditions
+- Exit conditions should be limited to: stop & reverse (empty `exit_conds` with opposite entry triggering close), `num_bars` (time-based exit), or a specific technical condition from the source material
+
 ### Creative Process
 
 For each idea with actionable entry/exit rules:
@@ -95,8 +101,7 @@ For each idea with actionable entry/exit rules:
 2. Analyze the idea: what indicators? what entry/exit conditions?
 3. Think about variants -- differences can be:
    - **Timeframe**: e.g., 240min vs 360min vs daily
-   - **Exit method**: stop & reverse vs time-based exit vs ATR-based SL/TP
-   - **Additional filters**: trend filter, volume, volatility
+   - **Exit method**: stop & reverse vs time-based exit (num_bars)
    - **Market specialization**: if the idea mentions better-performing markets
 4. If data is missing to complete a field, query the NotebookLM notebook (if `notebook_id` provided):
    ```bash

@@ -23,7 +23,12 @@ Estas reglas se acumulan con el feedback del usuario.
   Es mejor un draft incompleto que uno con valores inventados.
 
 - **Preferir 2-4 variantes sobre 1 estrategia perfecta.**
-  Explorar combinaciones de timeframe, metodo de salida y filtros.
+  Explorar combinaciones de timeframe y metodo de salida.
+
+- **Solo estrategias puras: entrada + salida. Sin SL/TP ni gestion de riesgo.**
+  El translator genera SOLO la logica core: indicadores para condiciones, condiciones de entrada y condiciones de salida.
+  `stop_loss_init`, `take_profit_init` y `stop_loss_mgmt` quedan en sus valores por defecto (todo `false`, params vacios).
+  No crear indicadores dedicados a SL/TP (como ATR_SL, ATR_TP). La gestion de riesgo se anade manualmente despues.
 
 - **Cada variante debe tener un `strat_name` descriptivo** que incluya la variacion.
   Formato sugerido: `"<Indicador>_<Logica>_<Exit>_<Timeframe>"`.
