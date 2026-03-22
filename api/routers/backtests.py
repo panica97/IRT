@@ -61,6 +61,17 @@ async def cancel_backtest(
     await backtest_service.cancel_job(db, job_id)
 
 
+# ---------------------------------------------------------------------------
+# Worker-only endpoints (claim, results, fail)
+#
+# These endpoints are intended for the backtest worker process, not end users.
+# They share the same API key auth as user-facing endpoints. This is an
+# acceptable trade-off for IRT because it is a single-user, locally-deployed
+# tool — adding separate worker auth (e.g. a dedicated worker API key or
+# mTLS) would be overengineering at this stage. If IRT becomes multi-user or
+# publicly exposed, revisit this (see audit_02 H-03).
+# ---------------------------------------------------------------------------
+
 @router.patch("/{job_id}/claim", response_model=BacktestJobResponse)
 async def claim_backtest(
     job_id: int,

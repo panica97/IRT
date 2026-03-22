@@ -159,7 +159,9 @@ async def cancel_job(db: AsyncSession, job_id: int) -> None:
 async def claim_job(db: AsyncSession, job_id: int) -> BacktestJob:
     """Atomically claim a pending job by setting status to 'running'."""
     result = await db.execute(
-        select(BacktestJob).where(BacktestJob.id == job_id)
+        select(BacktestJob)
+        .where(BacktestJob.id == job_id)
+        .with_for_update(skip_locked=True)
     )
     job = result.scalar_one_or_none()
     if not job:
@@ -202,6 +204,12 @@ async def complete_job(
             detail="Backtest job not found",
         )
 
+    if job.status != "running":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Job is not running (current status: {job.status})",
+        )
+
     job.status = "completed"
     job.completed_at = datetime.now(timezone.utc)
 
@@ -233,6 +241,12 @@ async def fail_job(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Backtest job not found",
+        )
+
+    if job.status != "running":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Job is not running (current status: {job.status})",
         )
 
     job.status = "failed"
