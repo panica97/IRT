@@ -3,43 +3,44 @@
 **Date**: 2026-03-22
 **Scope**: Entire codebase - frontend, backend, infrastructure, configuration
 **Auditor**: Claude Opus 4.6 (1M context)
+**Status**: Mostly Complete
 
 ---
 
 ## Tracking Table
 
-| # | Severity | Category | Finding | File(s) | Status |
-|---|----------|----------|---------|---------|--------|
-| 01 | HIGH | Security | Default API key in source code | `api/config.py:10` | Open |
-| 02 | HIGH | Security | API key transmitted in WebSocket URL query parameter | `frontend/src/hooks/useResearchStatus.ts:11`, `api/routers/research.py:59` | Open |
-| 03 | HIGH | Security | Health endpoint returns 200 even when DB is down | `api/routers/health.py:44-49` | Open |
-| 04 | HIGH | Security | No rate limiting on any endpoint | `api/main.py` | Open |
-| 05 | HIGH | Security | Dual auth (middleware + dependency) creates bypass risk | `api/middleware/auth.py`, `api/dependencies.py` | Open |
-| 06 | MEDIUM | Backend | No pagination on strategies list endpoint | `api/services/strategy_service.py:91-93` | Open |
-| 07 | MEDIUM | Backend | Unused import: `inspect` in health.py | `api/routers/health.py:6` | Open |
-| 08 | MEDIUM | Backend | `fill_todo` does not verify current value is `_TODO` | `api/services/strategy_service.py:467-487` | Open |
-| 09 | MEDIUM | Backend | History `sort` parameter accepts arbitrary strings silently | `api/services/history_service.py:79` | Open |
-| 10 | MEDIUM | Backend | Missing `instruments` in health check expected tables | `api/routers/health.py:12-19` | Open |
-| 11 | MEDIUM | Backend | `channel_service.add_channel` uses `flush()` without `commit()` | `api/services/channel_service.py:61` | Open |
-| 12 | MEDIUM | Backend | `ResearchSession` model not in `_EXPECTED_TABLES` synced with `instruments` | `api/routers/health.py:12-19` | Open |
-| 13 | MEDIUM | Backend | Strategy model `parameters` typed as `Optional[dict]` but defaults to `[]` (list) | `tools/db/models.py:68-80` | Open |
-| 14 | MEDIUM | Frontend | `formatDuration` duplicated in 4 files | `DashboardPage.tsx`, `HistoryPage.tsx`, `ResearchPage.tsx`, `ResearchDetailPage.tsx` | Open |
-| 15 | MEDIUM | Frontend | `error: any` type in DraftViewer.tsx | `frontend/src/components/strategies/DraftViewer.tsx:55` | Open |
-| 16 | MEDIUM | Frontend | No Error Boundary wrapping the app | `frontend/src/App.tsx` | Open |
-| 17 | MEDIUM | Frontend | WebSocket reconnect has no max retry limit | `frontend/src/hooks/useWebSocket.ts:42-46` | Open |
-| 18 | MEDIUM | Frontend | API key stored in localStorage (XSS-accessible) | `frontend/src/services/api.ts:8`, `frontend/src/router.tsx:14` | Open |
-| 19 | MEDIUM | Infra | Docker Compose exposes PostgreSQL port 5432 to host | `docker-compose.yml:9` | Open |
-| 20 | MEDIUM | Infra | No Docker health check for `api` or `frontend` services | `docker-compose.yml:31-50` | Open |
-| 21 | MEDIUM | Infra | Nginx proxy has no timeouts, buffer limits, or security headers | `frontend/nginx.conf` | Open |
-| 22 | LOW | Backend | `import_service.py` has duplicated `_extract_todo_fields` function | `api/services/import_service.py:179`, `api/services/strategy_service.py:217` | Open |
-| 23 | LOW | Backend | `health.py` imports `inspect` but never uses it | `api/routers/health.py:6` | Open |
-| 24 | LOW | Backend | `channel_service.delete_channel` prevents deletion of last channel but no business justification documented | `api/services/channel_service.py:98` | Open |
-| 25 | LOW | Frontend | No favicon or meta tags for SEO/sharing | `frontend/` | Open |
-| 26 | LOW | Frontend | Channel filter in HistoryPage has unused filtering logic | `frontend/src/pages/HistoryPage.tsx:158` | Open |
-| 27 | LOW | Infra | Root Dockerfile has no CMD or purpose clarity | `Dockerfile` (root) | Open |
-| 28 | LOW | Infra | `node_modules/` present in project root (should be gitignored or absent) | Root dir | Open |
-| 29 | LOW | Backend | `onupdate=func.now()` in TimestampMixin only works for ORM updates, not raw SQL | `tools/db/base.py:19` | Open |
-| 30 | LOW | Cross | No test suite exists for backend or frontend | Project-wide | Open |
+| # | Severity | Category | Finding | File(s) | Status | Resolved In |
+|---|----------|----------|---------|---------|--------|-------------|
+| 01 | HIGH | Security | Default API key in source code | `api/config.py:10` | Resolved | 7d6c636 |
+| 02 | HIGH | Security | API key transmitted in WebSocket URL query parameter | `frontend/src/hooks/useResearchStatus.ts:11`, `api/routers/research.py:59` | Resolved | 7d6c636 |
+| 03 | HIGH | Security | Health endpoint returns 200 even when DB is down | `api/routers/health.py:44-49` | Resolved | 7d6c636 |
+| 04 | HIGH | Security | No rate limiting on any endpoint | `api/main.py` | Resolved | 7d6c636 |
+| 05 | HIGH | Security | Dual auth (middleware + dependency) creates bypass risk | `api/middleware/auth.py`, `api/dependencies.py` | Resolved | 7d6c636 |
+| 06 | MEDIUM | Backend | No pagination on strategies list endpoint | `api/services/strategy_service.py:91-93` | Resolved | pending |
+| 07 | MEDIUM | Backend | Unused import: `inspect` in health.py | `api/routers/health.py:6` | Resolved | 7d6c636 |
+| 08 | MEDIUM | Backend | `fill_todo` does not verify current value is `_TODO` | `api/services/strategy_service.py:467-487` | Resolved | 7d6c636 |
+| 09 | MEDIUM | Backend | History `sort` parameter accepts arbitrary strings silently | `api/services/history_service.py:79` | Resolved | 7d6c636 |
+| 10 | MEDIUM | Backend | Missing `instruments` in health check expected tables | `api/routers/health.py:12-19` | Resolved | 7d6c636 |
+| 11 | MEDIUM | Backend | `channel_service.add_channel` uses `flush()` without `commit()` | `api/services/channel_service.py:61` | Resolved | 7d6c636 |
+| 12 | MEDIUM | Backend | `ResearchSession` model not in `_EXPECTED_TABLES` synced with `instruments` | `api/routers/health.py:12-19` | Resolved | 7d6c636 |
+| 13 | MEDIUM | Backend | Strategy model `parameters` typed as `Optional[dict]` but defaults to `[]` (list) | `tools/db/models.py:68-80` | Resolved | 7d6c636 |
+| 14 | MEDIUM | Frontend | `formatDuration` duplicated in 4 files | `DashboardPage.tsx`, `HistoryPage.tsx`, `ResearchPage.tsx`, `ResearchDetailPage.tsx` | Resolved | 7d6c636 |
+| 15 | MEDIUM | Frontend | `error: any` type in DraftViewer.tsx | `frontend/src/components/strategies/DraftViewer.tsx:55` | Resolved | 7d6c636 |
+| 16 | MEDIUM | Frontend | No Error Boundary wrapping the app | `frontend/src/App.tsx` | Resolved | 7d6c636 |
+| 17 | MEDIUM | Frontend | WebSocket reconnect has no max retry limit | `frontend/src/hooks/useWebSocket.ts:42-46` | Resolved | 7d6c636 |
+| 18 | MEDIUM | Frontend | API key stored in localStorage (XSS-accessible) | `frontend/src/services/api.ts:8`, `frontend/src/router.tsx:14` | Resolved | 7d6c636 |
+| 19 | MEDIUM | Infra | Docker Compose exposes PostgreSQL port 5432 to host | `docker-compose.yml:9` | Resolved | 7d6c636 |
+| 20 | MEDIUM | Infra | No Docker health check for `api` or `frontend` services | `docker-compose.yml:31-50` | Resolved | 7d6c636 |
+| 21 | MEDIUM | Infra | Nginx proxy has no timeouts, buffer limits, or security headers | `frontend/nginx.conf` | Resolved | 7d6c636 |
+| 22 | LOW | Backend | `import_service.py` has duplicated `_extract_todo_fields` function | `api/services/import_service.py:179`, `api/services/strategy_service.py:217` | Resolved | 7d6c636 |
+| 23 | LOW | Backend | `health.py` imports `inspect` but never uses it | `api/routers/health.py:6` | Resolved | 7d6c636 |
+| 24 | LOW | Backend | `channel_service.delete_channel` prevents deletion of last channel but no business justification documented | `api/services/channel_service.py:98` | Resolved | 7d6c636 |
+| 25 | LOW | Frontend | No favicon or meta tags for SEO/sharing | `frontend/` | Resolved | 7d6c636 |
+| 26 | LOW | Frontend | Channel filter in HistoryPage has unused filtering logic | `frontend/src/pages/HistoryPage.tsx:158` | Resolved | 7d6c636 |
+| 27 | LOW | Infra | Root Dockerfile has no CMD or purpose clarity | `Dockerfile` (root) | Resolved | 7d6c636 |
+| 28 | LOW | Infra | `node_modules/` present in project root (should be gitignored or absent) | Root dir | Resolved | 7d6c636 |
+| 29 | LOW | Backend | `onupdate=func.now()` in TimestampMixin only works for ORM updates, not raw SQL | `tools/db/base.py:19` | Resolved | 7d6c636 |
+| 30 | LOW | Cross | No test suite exists for backend or frontend | Project-wide | Open | |
 
 ---
 
@@ -274,6 +275,15 @@ All frontend service calls map to existing backend endpoints:
 | Orphaned endpoints | 0 |
 | Dead code instances | 3 |
 | Test coverage | 0% |
+
+---
+
+## Implementation History
+
+| Date | Action | Issues Addressed | Notes |
+|------|--------|-----------------|-------|
+| 2026-03-22 | Bulk fix of 29 findings | H-01 through H-05, M-07 through M-21, L-22 through L-29 | 3 parallel agents: backend, frontend, infrastructure |
+| 2026-03-22 | Add pagination to strategies list | M-06 | page/limit query params (default 50, max 200) matching history endpoint pattern |
 
 ---
 

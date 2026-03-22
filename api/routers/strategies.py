@@ -62,13 +62,16 @@ async def list_strategies(
     has_draft: bool | None = Query(None),
     has_todos: bool | None = Query(None),
     status: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
     total, strategies = await strategy_service.list_strategies(
         db, channel=channel, search=search, session_id=session_id,
         has_draft=has_draft, has_todos=has_todos, status=status,
+        page=page, limit=limit,
     )
-    return {"total": total, "strategies": strategies}
+    return {"total": total, "page": page, "limit": limit, "strategies": strategies}
 
 
 # NOTE: /status and /drafts routes MUST come before /{strategy_name}

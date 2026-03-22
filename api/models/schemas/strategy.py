@@ -34,4 +34,6 @@ class StrategyResponse(BaseModel):
 
 class StrategiesListResponse(BaseModel):
     total: int
+    page: int
+    limit: int
     strategies: list[StrategyResponse]

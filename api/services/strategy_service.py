@@ -25,6 +25,8 @@ async def list_strategies(
     has_draft: bool | None = None,
     has_todos: bool | None = None,
     status: str | None = None,
+    page: int = 1,
+    limit: int = 50,
 ) -> tuple[int, list[dict[str, Any]]]:
     """Return (total, strategies) with optional channel/FTS filters."""
     query = select(Strategy, Channel.name.label("source_channel_name")).outerjoin(
@@ -87,8 +89,10 @@ async def list_strategies(
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar_one()
 
-    # Results
+    # Pagination
     query = query.order_by(Strategy.name)
+    offset = (page - 1) * limit
+    query = query.offset(offset).limit(limit)
     rows = (await db.execute(query)).all()
 
     strategies = []

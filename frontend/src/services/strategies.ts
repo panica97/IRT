@@ -9,6 +9,8 @@ interface StrategyFilters {
   has_draft?: boolean;
   has_todos?: boolean;
   status?: 'pending' | 'idea' | 'validated';
+  page?: number;
+  limit?: number;
 }
 
 export async function getStrategies(filters: StrategyFilters = {}): Promise<StrategiesResponse> {
@@ -19,6 +21,8 @@ export async function getStrategies(filters: StrategyFilters = {}): Promise<Stra
   if (filters.has_draft !== undefined) params.set('has_draft', String(filters.has_draft));
   if (filters.has_todos !== undefined) params.set('has_todos', String(filters.has_todos));
   if (filters.status) params.set('status', filters.status);
+  if (filters.page !== undefined) params.set('page', String(filters.page));
+  if (filters.limit !== undefined) params.set('limit', String(filters.limit));
 
   const { data } = await api.get<StrategiesResponse>(`/strategies?${params.toString()}`);
   return data;

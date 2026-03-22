@@ -16,5 +16,7 @@ export interface Strategy {
 
 export interface StrategiesResponse {
   total: number;
+  page: number;
+  limit: number;
   strategies: Strategy[];
 }
