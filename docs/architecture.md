@@ -1,20 +1,20 @@
-# Arquitectura
+# Architecture
 
-## Vision general
+## Overview
 
-IRT (Ideas Research Team) es un pipeline de investigacion de estrategias de trading. Monitorea canales de YouTube, extrae estrategias con NotebookLM, las clasifica y traduce, y las guarda en PostgreSQL para analisis. El frontend React permite gestionar y visualizar todo el flujo.
+IRT (Ideas Research Team) is a trading strategy research pipeline. It monitors YouTube channels, extracts strategies using NotebookLM, classifies and translates them, and persists them in PostgreSQL for analysis. The React frontend provides a real-time dashboard for managing the entire workflow.
 
 ## Stack
 
-| Componente | Tecnologia |
-|------------|------------|
-| Orquestador | Claude Code CLI |
+| Component | Technology |
+|-----------|-----------|
+| Orchestrator | Claude Code CLI |
 | Backend API | Python 3.12 + FastAPI |
-| Frontend | React 18 + TypeScript + Tailwind CSS |
-| Base de datos | PostgreSQL 16 |
+| Frontend | React 18 + TypeScript + Tailwind CSS + Lucide React |
+| Database | PostgreSQL 16 |
 | Scripts | Python 3.12 (yt-dlp, SQLAlchemy) |
-| Extraccion de estrategias | NotebookLM (notebooklm-py) |
-| Contenedor | Docker Compose (api, frontend, postgres) |
+| Strategy extraction | NotebookLM (notebooklm-py) |
+| Container | Docker Compose (api, frontend, postgres) |
 
 ## Data flow
 
@@ -22,54 +22,54 @@ IRT (Ideas Research Team) es un pipeline de investigacion de estrategias de trad
 YouTube
   |
   v
-yt-scraper (fetch videos por topic)
+yt-scraper (fetch videos by topic)
   |
   v
-video-classifier (filtra videos sin estrategias)
+video-classifier (filter non-strategy videos)
   |
   v
-NotebookLM analyst (extrae estrategias)
+NotebookLM analyst (extract strategies)
   |
   v
-strategy-variants (genera variantes)
+strategy-variants (generate variants)
   |
   v
-strategy-translator (traduce a formato DB)
+strategy-translator (translate to DB format)
   |
   v
-db-manager (guarda con deduplicacion)
+db-manager (persist with deduplication)
   |
   v
 PostgreSQL
   |
   v
-FastAPI API (endpoints REST)
+FastAPI API (REST endpoints)
   |
   v
-React dashboard (visualizacion y gestion)
+React dashboard (visualization and management)
 ```
 
-## Estructura de directorios
+## Directory structure
 
 ```
 IRT/
-├── CLAUDE.md                     Contexto del proyecto para Claude Code
-├── Dockerfile                    Imagen Python 3.12-slim
-├── docker-compose.yml            Servicios: api, frontend, postgres
-├── requirements.txt              Dependencias Python
-├── .env                          Secrets (no versionado)
+├── CLAUDE.md                     Project context for Claude Code
+├── Dockerfile                    Python 3.12-slim image
+├── docker-compose.yml            Services: api, frontend, postgres
+├── requirements.txt              Python dependencies
+├── .env                          Secrets (not versioned)
 ├── api/                          FastAPI backend
-│   ├── routers/                  Endpoints REST
-│   │   ├── strategies.py         CRUD estrategias + drafts
-│   │   ├── channels.py           CRUD canales
-│   │   ├── history.py            Historial de investigacion
-│   │   ├── instruments.py        Tabla de referencia de instrumentos
-│   │   ├── stats.py              Estadisticas del dashboard
-│   │   ├── research.py           Sesiones de investigacion en curso
+│   ├── routers/                  REST endpoints
+│   │   ├── strategies.py         CRUD strategies + drafts (list, detail, data update, TODO fill)
+│   │   ├── channels.py           CRUD channels by topic
+│   │   ├── history.py            Research history + stats
+│   │   ├── instruments.py        Instrument reference table CRUD
+│   │   ├── stats.py              Dashboard statistics
+│   │   ├── research.py           Active research sessions
 │   │   ├── topics.py             CRUD topics
-│   │   ├── export.py             Exportacion de datos
+│   │   ├── export.py             Data export (channels, strategies, drafts)
 │   │   └── health.py             Health check
-│   ├── services/                 Logica de negocio
+│   ├── services/                 Business logic
 │   │   ├── strategy_service.py
 │   │   ├── channel_service.py
 │   │   ├── history_service.py
@@ -85,109 +85,165 @@ IRT/
 ├── frontend/                     React dashboard
 │   └── src/
 │       ├── components/
-│       │   ├── layout/           Sidebar, header, theme toggle
-│       │   ├── common/           Componentes reutilizables
-│       │   ├── strategies/       Tabla, viewer, filtros de estrategias
-│       │   ├── channels/         Gestion de canales
-│       │   ├── history/          Historial de research
-│       │   └── live/             Research en tiempo real
-│       ├── pages/                9 paginas
-│       │   ├── LoginPage.tsx
-│       │   ├── DashboardPage.tsx
-│       │   ├── ResearchPage.tsx
-│       │   ├── ResearchDetailPage.tsx
-│       │   ├── ChannelsPage.tsx
-│       │   ├── HistoryPage.tsx
-│       │   ├── StrategiesPage.tsx
-│       │   ├── LivePage.tsx
-│       │   └── InstrumentsPage.tsx
-│       ├── services/             API client (Axios)
-│       │   ├── api.ts            Configuracion base Axios
-│       │   ├── strategies.ts
-│       │   ├── channels.ts
-│       │   ├── history.ts
-│       │   ├── instruments.ts
-│       │   ├── research.ts
-│       │   └── stats.ts
-│       └── hooks/                Custom hooks
-│           ├── useTheme.ts
-│           ├── useResearchStatus.ts
-│           └── useWebSocket.ts
-├── tools/                        Scripts Python ejecutables
+│       │   ├── layout/           Sidebar, Header, Layout, theme toggle
+│       │   ├── common/           ConfirmDialog, LoadingSpinner, StatsCard, StatusBadge, TodoBadge
+│       │   ├── strategies/       Draft viewer, strategy cards, indicator table, TODO highlighting
+│       │   │   └── draft-sections/  Section panels: Instrument, Indicators, Conditions, Risk, Backtest, Notes
+│       │   ├── channels/         Channel cards, forms, topic groups
+│       │   ├── history/          History table and filters
+│       │   └── live/             Real-time research (progress bar, step indicator)
+│       ├── pages/                9 pages (see Frontend section)
+│       ├── services/             API client (Axios): api, strategies, channels, history, instruments, research, stats
+│       └── hooks/                useTheme, useResearchStatus, useWebSocket
+├── tools/                        Executable Python scripts
 │   ├── youtube/                  yt-dlp scraping
-│   │   ├── search.py            Busqueda general en YouTube
-│   │   ├── fetch_topic.py       Fetch videos de canales por topic
-│   │   ├── channels.py          Gestion de la BD de canales
-│   │   └── formatting.py        Formateo de resultados
-│   ├── db/                       Base de datos (SQLAlchemy)
-│   │   ├── models.py            Modelos ORM (Strategy, Draft, Channel, Instrument, etc.)
-│   │   ├── session.py           Session factory y context manager
-│   │   ├── base.py              Base declarativa + TimestampMixin
-│   │   ├── strategy_repo.py     Repositorio de estrategias
-│   │   ├── draft_repo.py        Repositorio de drafts (con deteccion de TODOs)
-│   │   ├── channel_repo.py      Repositorio de canales
-│   │   ├── instrument_repo.py   Repositorio de instrumentos
-│   │   ├── history_repo.py      Repositorio de historial
-│   │   └── research_repo.py     Repositorio de sesiones de research
+│   │   ├── search.py            General YouTube search
+│   │   ├── fetch_topic.py       Fetch videos from channels by topic
+│   │   ├── channels.py          Channel database management
+│   │   └── formatting.py        Result formatting
+│   ├── db/                       Database layer (SQLAlchemy)
+│   │   ├── models.py            ORM models (Strategy, Draft, Channel, Instrument, etc.)
+│   │   ├── session.py           Session factory and context manager
+│   │   ├── base.py              Declarative base + TimestampMixin
+│   │   ├── strategy_repo.py     Strategy repository
+│   │   ├── draft_repo.py        Draft repository (with TODO detection)
+│   │   ├── channel_repo.py      Channel repository
+│   │   ├── instrument_repo.py   Instrument repository
+│   │   ├── history_repo.py      Research history repository
+│   │   └── research_repo.py     Research session repository
 │   └── __init__.py
 ├── .claude/
 │   ├── skills/                   Pipeline skills (9 skills)
-│   │   ├── research/            Orquestador del pipeline
-│   │   ├── yt-scraper/          Fetch videos por topic
-│   │   ├── video-classifier/    Clasifica videos (strategy vs no-strategy)
-│   │   ├── notebooklm/          API completa de NotebookLM
-│   │   ├── notebooklm-analyst/  Extraccion de estrategias
-│   │   ├── strategy-variants/   Genera variantes de estrategias
-│   │   ├── strategy-translator/ Traduce estrategias a formato DB
-│   │   ├── db-manager/          Persistencia en PostgreSQL
-│   │   └── todo-fill/           Rellena campos TODO en drafts
+│   │   ├── research/            Pipeline orchestrator
+│   │   ├── yt-scraper/          Fetch videos by topic
+│   │   ├── video-classifier/    Classify videos (strategy vs non-strategy)
+│   │   ├── notebooklm/          Full NotebookLM API
+│   │   ├── notebooklm-analyst/  Strategy extraction
+│   │   ├── strategy-variants/   Generate strategy variants
+│   │   ├── strategy-translator/ Translate strategies to DB format
+│   │   ├── db-manager/          PostgreSQL persistence
+│   │   └── todo-fill/           Fill TODO fields in drafts
 │   └── agents/
-│       └── research/            Agente de investigacion (pipeline completo)
-├── config/                       Configuracion global
+│       └── research/            Research agent (full pipeline)
+├── config/                       Global configuration
 │   └── settings.json
-├── data/                         Datos persistentes
-│   ├── channels/                Base de datos de canales YouTube (YAML)
-│   ├── strategies/              Estrategias extraidas (YAML, legacy)
-│   ├── research/                Historial de research (YAML, legacy)
-│   └── backtests/               Placeholder para backtesting futuro
-├── docs/                         Documentacion del proyecto
-├── openspec/                     Artefactos SDD
-└── planes/                       Planes y roadmap (gitignored)
+├── data/                         Persistent data
+│   ├── channels/                YouTube channel database (YAML)
+│   ├── strategies/              Extracted strategies (YAML, legacy)
+│   ├── research/                Research history (YAML, legacy)
+│   └── backtests/               Placeholder for future backtesting
+├── docs/                         Project documentation
+├── openspec/                     SDD artifacts
+└── planes/                       Plans and roadmap (gitignored)
 ```
 
 ## Skills
 
-| Skill | Directorio | Funcion |
+| Skill | Directory | Purpose |
 |-------|-----------|---------|
-| research | `.claude/skills/research/` | Orquestador del pipeline de investigacion |
-| yt-scraper | `.claude/skills/yt-scraper/` | Fetch de videos por topic desde canales registrados |
-| video-classifier | `.claude/skills/video-classifier/` | Clasifica videos para filtrar los que no contienen estrategias |
-| notebooklm | `.claude/skills/notebooklm/` | API completa de NotebookLM |
-| notebooklm-analyst | `.claude/skills/notebooklm-analyst/` | Extraccion de estrategias de trading desde videos |
-| strategy-variants | `.claude/skills/strategy-variants/` | Genera variantes de cada estrategia extraida |
-| strategy-translator | `.claude/skills/strategy-translator/` | Traduce estrategias al formato de la BD |
-| db-manager | `.claude/skills/db-manager/` | Persistencia en PostgreSQL con deduplicacion |
-| todo-fill | `.claude/skills/todo-fill/` | Rellena campos TODO pendientes en drafts |
+| research | `.claude/skills/research/` | Research pipeline orchestrator |
+| yt-scraper | `.claude/skills/yt-scraper/` | Fetch videos by topic from registered channels |
+| video-classifier | `.claude/skills/video-classifier/` | Filter out videos that don't contain strategies |
+| notebooklm | `.claude/skills/notebooklm/` | Full NotebookLM API |
+| notebooklm-analyst | `.claude/skills/notebooklm-analyst/` | Extract trading strategies from videos |
+| strategy-variants | `.claude/skills/strategy-variants/` | Generate variants for each extracted strategy |
+| strategy-translator | `.claude/skills/strategy-translator/` | Translate strategies to DB format |
+| db-manager | `.claude/skills/db-manager/` | PostgreSQL persistence with deduplication |
+| todo-fill | `.claude/skills/todo-fill/` | Fill pending TODO fields in drafts |
 
 ## Frontend
 
-9 paginas con tema claro/oscuro y sidebar colapsable:
+9 pages with light/dark theme and collapsible sidebar:
 
-| Pagina | Ruta | Descripcion |
+| Page | Route | Description |
+|------|-------|-------------|
+| Login | `/login` | Authentication |
+| Dashboard | `/` | Overview with statistics |
+| Research | `/research` | Launch and view research sessions |
+| Research Detail | `/research/:id` | Research session detail |
+| Channels | `/channels` | Manage YouTube channels by topic |
+| History | `/history` | History of researched videos |
+| Strategies | `/strategies` | Strategy and draft listing with detail viewer |
+| Live | `/live` | Real-time research monitoring |
+| Instruments | `/instruments` | Instrument reference table (CRUD) |
+
+### Draft viewer
+
+The draft detail view is organized into collapsible section panels:
+
+- **Instrument** -- Shows symbol (dropdown selector from instrument reference table), secType badge, exchange, currency, multiplier, and minTick. Selecting a different instrument auto-fills all related fields.
+- **Indicators** -- Table layout showing indicator name, parameters, timeframe, and alias. TODO fields are highlighted inline.
+- **Conditions** -- Entry and exit rules displayed as structured lists.
+- **Risk** -- Risk management parameters (stop loss, take profit, position sizing).
+- **Backtest** -- Backtesting configuration and notes.
+- **Notes** -- Free-form notes section.
+
+An inline JSON editor toggle lets users view and edit the raw draft data. TODO values (`_TODO`) are highlighted in both the structured view and the JSON editor. Saves persist via `PUT /drafts/{strat_code}/data`.
+
+## API endpoints
+
+### Strategies (`/api/strategies`)
+
+| Method | Path | Description |
 |--------|------|-------------|
-| Login | `/login` | Autenticacion |
-| Dashboard | `/` | Resumen general con estadisticas |
-| Research | `/research` | Lanzar y ver sesiones de investigacion |
-| Research Detail | `/research/:id` | Detalle de una sesion de research |
-| Channels | `/channels` | Gestion de canales YouTube por topic |
-| History | `/history` | Historial de videos investigados |
-| Strategies | `/strategies` | Listado y viewer de estrategias/drafts |
-| Live | `/live` | Research en tiempo real |
-| Instruments | `/instruments` | Tabla de referencia de instrumentos |
+| GET | `/` | List all strategies (with filters) |
+| GET | `/{name}` | Get strategy by name |
+| GET | `/{name}/drafts` | Get drafts for a strategy |
+| PATCH | `/{name}/status` | Update strategy status |
 
-## Configuracion
+### Drafts (`/api/strategies/drafts`)
 
-El archivo `config/settings.json` centraliza la configuracion:
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | List all drafts |
+| GET | `/{strat_code}` | Get draft detail |
+| PUT | `/{strat_code}/data` | Update draft data (full JSON replace) |
+| PATCH | `/{strat_code}/fill-todo` | Fill TODO fields with AI-generated values |
+
+### Channels (`/api/channels`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | List all channels grouped by topic |
+| GET | `/{topic}` | Get channels for a topic |
+| POST | `/{topic}` | Add channel to a topic |
+| DELETE | `/{topic}/{channel_name}` | Remove channel |
+
+### Topics (`/api/topics`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/` | Create topic |
+| PUT | `/{slug}` | Update topic |
+| DELETE | `/{slug}` | Delete topic |
+
+### Instruments (`/api/instruments`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | List all instruments |
+| GET | `/{symbol}` | Get instrument by symbol |
+| POST | `/` | Create instrument |
+| PUT | `/{symbol}` | Update instrument |
+| DELETE | `/{symbol}` | Delete instrument |
+
+### Other
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/stats` | Dashboard statistics |
+| GET | `/api/research/sessions` | List research sessions |
+| GET | `/api/research/sessions/{id}` | Get research session detail |
+| GET | `/api/history` | Research history (with filters) |
+| GET | `/api/history/stats` | History statistics |
+| GET | `/api/export/channels` | Export channels |
+| GET | `/api/export/strategies` | Export strategies |
+| GET | `/api/export/drafts/{strat_code}` | Export single draft |
+| GET | `/api/health` | Health check |
+
+## Configuration
+
+`config/settings.json` centralizes configuration:
 
 ```json
 {
@@ -207,6 +263,6 @@ El archivo `config/settings.json` centraliza la configuracion:
 }
 ```
 
-## Flujo de desarrollo
+## Development workflow
 
-Para cambios al codigo del propio repositorio (features, refactors, bugfixes) se usa el framework SDD (Spec-Driven Development) definido en la configuracion global de Claude Code (`~/.claude/CLAUDE.md`).
+Code changes to this repository (features, refactors, bugfixes) use the SDD (Spec-Driven Development) framework defined in the global Claude Code configuration (`~/.claude/CLAUDE.md`).

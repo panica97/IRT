@@ -1,82 +1,82 @@
 # IRT (Ideas Research Team)
 
-Pipeline de investigación de estrategias de trading. Monitorea canales de YouTube, extrae estrategias con NotebookLM, las traduce a formato IBKR y las persiste en PostgreSQL con un dashboard en tiempo real.
+Trading strategy research pipeline. Monitors YouTube channels, extracts strategies with NotebookLM, translates them to IBKR format, and persists them in PostgreSQL with a real-time dashboard.
 
 ## Stack
 
-- **Orquestador:** Claude Code CLI
+- **Orchestrator:** Claude Code CLI
 - **Backend:** Python 3.12, FastAPI
 - **Frontend:** React 18 + TypeScript + Tailwind CSS + Lucide React
-- **Base de datos:** PostgreSQL 16
+- **Database:** PostgreSQL 16
 - **Scraping:** yt-dlp
-- **Análisis:** NotebookLM (notebooklm-py)
+- **Analysis:** NotebookLM (notebooklm-py)
 - **Deploy:** Docker + Docker Compose
 
-## Pipeline de investigación
+## Research pipeline
 
 ```
-preflight → yt-scraper → video-classifier → notebooklm-analyst → strategy-variants → strategy-translator → db-manager
+preflight -> yt-scraper -> video-classifier -> notebooklm-analyst -> strategy-variants -> strategy-translator -> db-manager
 ```
 
-0. **Preflight** — verifica autenticación con NotebookLM
-1. **yt-scraper** — busca vídeos recientes en canales de trading registrados
-2. **video-classifier** — filtra vídeos irrelevantes para el topic
-3. **notebooklm-analyst** — analiza los vídeos y extrae estrategias estructuradas (YAML)
-4. **strategy-variants** — purifica, split long/short, genera variantes
-5. **strategy-translator** — traduce las estrategias a formato JSON IBKR
-6. **db-manager** — guarda en PostgreSQL con deduplicación
+0. **Preflight** -- verify NotebookLM authentication
+1. **yt-scraper** -- fetch recent videos from registered trading channels
+2. **video-classifier** -- filter out irrelevant videos
+3. **notebooklm-analyst** -- analyze videos and extract structured strategies (YAML)
+4. **strategy-variants** -- purify, split long/short, generate variants
+5. **strategy-translator** -- translate strategies to IBKR JSON format
+6. **db-manager** -- persist to PostgreSQL with deduplication
 
-Se lanza con `/research <topic>` desde Claude Code.
+Launch with `/research <topic>` from Claude Code.
 
-## Estructura del proyecto
+## Project structure
 
 ```
-api/                    FastAPI backend (puerto 8000)
-  routers/              Endpoints REST
-  models/               Modelos SQLAlchemy
-  services/             Lógica de negocio
-  alembic/              Migraciones de BD
-frontend/               React dashboard (puerto 5173)
-  src/                  Código fuente TypeScript
-tools/                  Scripts Python del pipeline
-  youtube/              Búsqueda y scraping (yt-dlp)
-  db/                   Modelos ORM, repositorios, sesión (SQLAlchemy)
-scripts/                Scripts auxiliares
-config/                 Configuración global
-data/                   Datos persistentes (channels, strategies)
-openspec/               Artefactos SDD (cambios planificados)
-docs/                   Documentación
-.claude/skills/         Skills de Claude Code (9 skills: research, yt-scraper,
+api/                    FastAPI backend (port 8000)
+  routers/              REST endpoints
+  models/               SQLAlchemy models
+  services/             Business logic
+  alembic/              DB migrations
+frontend/               React dashboard (port 5173)
+  src/                  TypeScript source
+tools/                  Pipeline Python scripts
+  youtube/              Search and scraping (yt-dlp)
+  db/                   ORM models, repositories, session (SQLAlchemy)
+scripts/                Auxiliary scripts
+config/                 Global configuration
+data/                   Persistent data (channels, strategies)
+openspec/               SDD artifacts (planned changes)
+docs/                   Documentation
+.claude/skills/         Claude Code skills (9 skills: research, yt-scraper,
                         notebooklm, notebooklm-analyst, video-classifier,
                         strategy-variants, strategy-translator, db-manager, todo-fill)
 ```
 
-## Requisitos
+## Requirements
 
-- Docker y Docker Compose
-- Fichero `.env` con las variables necesarias (ver `.env.example`)
+- Docker and Docker Compose
+- `.env` file with required variables (see `.env.example`)
 
-## Cómo ejecutar
+## How to run
 
 ```bash
-# Levantar todos los servicios
+# Start all services
 docker compose up -d
 
-# El dashboard estará en http://localhost:5173
-# La API estará en http://localhost:8000
+# Dashboard: http://localhost:5173
+# API:       http://localhost:8000
 
-# Ejecutar el pipeline manualmente
+# Run pipeline manually
 docker compose run pipeline python -m tools.youtube.search "futures trading" --count 5
 
-# Ver canales registrados
+# View registered channels
 docker compose run pipeline python -m tools.youtube.channels --db data/channels/channels.yaml topics
 ```
 
-## Servicios
+## Services
 
-| Servicio | Puerto | Descripción |
-|----------|--------|-------------|
-| `frontend` | 5173 | Dashboard React |
-| `api` | 8000 | API FastAPI |
-| `postgres` | 5432 | Base de datos |
-| `pipeline` | — | Scripts del pipeline (bajo demanda) |
+| Service | Port | Description |
+|---------|------|-------------|
+| `frontend` | 5173 | React dashboard |
+| `api` | 8000 | FastAPI API |
+| `postgres` | 5432 | Database |
+| `pipeline` | -- | Pipeline scripts (on demand) |

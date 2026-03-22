@@ -1,103 +1,103 @@
 # Tools
 
-Scripts Python en `tools/` que se ejecutan como modulos.
+Python scripts in `tools/` executed as modules.
 
 ## YouTube (`tools/youtube/`)
 
-### Busqueda por keyword
+### Keyword search
 
 ```bash
 python -m tools.youtube.search "futures trading" --count 5 --months 3
 ```
 
-| Flag | Default | Descripcion |
+| Flag | Default | Description |
 |------|---------|-------------|
-| `--count N` | 20 | Numero de resultados |
-| `--months N` | 6 | Solo videos de los ultimos N meses |
-| `--no-date-filter` | — | Sin filtro de fecha |
+| `--count N` | 20 | Number of results |
+| `--months N` | 6 | Only videos from the last N months |
+| `--no-date-filter` | -- | No date filter |
 
-Devuelve: titulo, canal (subs), views, duracion, fecha, URL.
+Returns: title, channel (subs), views, duration, date, URL.
 
-### Fetch por topic
+### Fetch by topic
 
 ```bash
 python -m tools.youtube.fetch_topic --db data/channels/channels.yaml futures --days 14
 ```
 
-| Flag | Default | Descripcion |
+| Flag | Default | Description |
 |------|---------|-------------|
-| `--db <path>` | — | Ruta a channels.yaml (requerido) |
-| `--days N` | 7 | Solo videos de los ultimos N dias |
-| `--count N` | 30 | Maximo de resultados |
+| `--db <path>` | -- | Path to channels.yaml (required) |
+| `--days N` | 7 | Only videos from the last N days |
+| `--count N` | 30 | Max results |
 
-Busca en paralelo (4 workers) en todos los canales del topic. Actualiza `last_fetched` automaticamente.
+Searches in parallel (4 workers) across all channels for the topic. Automatically updates `last_fetched`.
 
-### Gestion de canales
+### Channel management
 
 ```bash
-python -m tools.youtube.channels --db data/channels/channels.yaml <comando>
+python -m tools.youtube.channels --db data/channels/channels.yaml <command>
 ```
 
-| Comando | Descripcion |
+| Command | Description |
 |---------|-------------|
-| `topics` | Lista todos los topics |
-| `list [topic]` | Muestra canales (todos o por topic) |
-| `add <topic> <url> [--name N]` | Anade canal a un topic |
-| `remove <topic> <url>` | Elimina canal de un topic |
+| `topics` | List all topics |
+| `list [topic]` | Show channels (all or by topic) |
+| `add <topic> <url> [--name N]` | Add channel to a topic |
+| `remove <topic> <url>` | Remove channel from a topic |
 
-## Base de datos (`tools/db/`)
+## Database (`tools/db/`)
 
-Capa de acceso a datos con SQLAlchemy 2.0 y PostgreSQL 16.
+Data access layer with SQLAlchemy 2.0 and PostgreSQL 16.
 
-### Modelos ORM (`models.py`)
+### ORM models (`models.py`)
 
-| Modelo | Tabla | Descripcion |
-|--------|-------|-------------|
-| `Topic` | `topics` | Topics de investigacion (slug, descripcion) |
-| `Channel` | `channels` | Canales YouTube vinculados a un topic |
-| `Strategy` | `strategies` | Estrategias extraidas (nombre, reglas, parametros en JSONB) |
-| `Draft` | `drafts` | Borradores de estrategias con deteccion de TODOs |
-| `Instrument` | `instruments` | Tabla de referencia de instrumentos (symbol, exchange, multiplier, min_tick) |
-| `ResearchHistory` | `research_history` | Videos investigados (video_id + topic, unique) |
-| `ResearchSession` | `research_sessions` | Sesiones de research en curso (status, step, progress) |
+| Model | Table | Description |
+|-------|-------|-------------|
+| `Topic` | `topics` | Research topics (slug, description) |
+| `Channel` | `channels` | YouTube channels linked to a topic |
+| `Strategy` | `strategies` | Extracted strategies (name, rules, JSONB parameters) |
+| `Draft` | `drafts` | Strategy drafts with TODO detection |
+| `Instrument` | `instruments` | Instrument reference table (symbol, exchange, multiplier, min_tick) |
+| `ResearchHistory` | `research_history` | Researched videos (video_id + topic, unique) |
+| `ResearchSession` | `research_sessions` | Active research sessions (status, step, progress) |
 
-Todos los modelos con timestamps usan `TimestampMixin` (created_at, updated_at).
+All models with timestamps use `TimestampMixin` (created_at, updated_at).
 
 ### Session management (`session.py`)
 
-Provee `sync_session_ctx()`, un context manager para obtener sesiones sincronas:
+Provides `sync_session_ctx()`, a context manager for synchronous sessions:
 
 ```python
 from tools.db.session import sync_session_ctx
 
 with sync_session_ctx() as session:
-    # operaciones con la BD
+    # database operations
     pass
 ```
 
-Requiere la variable de entorno `DATABASE_URL`.
+Requires the `DATABASE_URL` environment variable.
 
-### Repositorios
+### Repositories
 
-| Archivo | Funciones principales |
-|---------|----------------------|
-| `strategy_repo.py` | CRUD de estrategias, busqueda full-text |
-| `draft_repo.py` | CRUD de drafts, deteccion de campos TODO, activacion/desactivacion |
-| `channel_repo.py` | CRUD de canales por topic |
-| `instrument_repo.py` | CRUD de instrumentos de referencia |
-| `history_repo.py` | Registro de videos investigados, `get_researched_video_ids()` |
-| `research_repo.py` | Gestion de sesiones de research (crear, actualizar paso, completar) |
+| File | Main functions |
+|------|---------------|
+| `strategy_repo.py` | Strategy CRUD, full-text search |
+| `draft_repo.py` | Draft CRUD, TODO field detection, activate/deactivate |
+| `channel_repo.py` | Channel CRUD by topic |
+| `instrument_repo.py` | Instrument reference CRUD |
+| `history_repo.py` | Researched video tracking, `get_researched_video_ids()` |
+| `research_repo.py` | Research session management (create, update step, complete) |
 
 ## Slash commands
 
-Los slash commands son la interfaz principal desde Claude Code:
+Slash commands are the primary interface from Claude Code:
 
 ### `/research`
 
-Lanza el pipeline completo de investigacion para un topic. Ver `.claude/skills/research/SKILL.md`.
+Launches the full research pipeline for a topic. See `.claude/skills/research/SKILL.md`.
 
 ### `/notebooklm`
 
-Referencia completa en `.claude/skills/notebooklm/SKILL.md`.
+Full reference in `.claude/skills/notebooklm/SKILL.md`.
 
-> **Nota:** Las operaciones de YouTube (busqueda, fetch por topic, gestion de canales) se ejecutan via `python -m tools.youtube.search`, `python -m tools.youtube.fetch_topic` y `python -m tools.youtube.channels` directamente, o a traves del skill `yt-scraper` dentro del pipeline de research. No existen como slash commands independientes.
+> **Note:** YouTube operations (search, fetch by topic, channel management) are run via `python -m tools.youtube.search`, `python -m tools.youtube.fetch_topic`, and `python -m tools.youtube.channels` directly, or through the `yt-scraper` skill within the research pipeline. They do not exist as standalone slash commands.
