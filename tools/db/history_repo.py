@@ -125,44 +125,47 @@ def get_history_stats(session: Session) -> dict[str, Any]:
         select(func.coalesce(func.sum(ResearchHistory.strategies_found), 0))
     ).scalar() or 0
 
-    # By topic
+    # By topic (LEFT JOIN to include entries with NULL topic_id)
     by_topic_rows = session.execute(
         select(
-            Topic.slug,
+            func.coalesce(Topic.slug, "Uncategorized").label("slug"),
             func.count(ResearchHistory.id).label("videos"),
             func.coalesce(func.sum(ResearchHistory.strategies_found), 0).label("strategies"),
         )
-        .join(Topic, ResearchHistory.topic_id == Topic.id)
-        .group_by(Topic.slug)
+        .select_from(ResearchHistory)
+        .outerjoin(Topic, ResearchHistory.topic_id == Topic.id)
+        .group_by(func.coalesce(Topic.slug, "Uncategorized"))
     ).all()
     by_topic = {
         row.slug: {"videos": row.videos, "strategies": int(row.strategies)}
         for row in by_topic_rows
     }
 
-    # By channel
+    # By channel (LEFT JOIN to include entries with NULL channel_id)
     by_channel_rows = session.execute(
         select(
-            Channel.name,
+            func.coalesce(Channel.name, "Unknown channel").label("name"),
             func.count(ResearchHistory.id).label("videos"),
             func.coalesce(func.sum(ResearchHistory.strategies_found), 0).label("strategies"),
         )
-        .join(Channel, ResearchHistory.channel_id == Channel.id)
-        .group_by(Channel.name)
+        .select_from(ResearchHistory)
+        .outerjoin(Channel, ResearchHistory.channel_id == Channel.id)
+        .group_by(func.coalesce(Channel.name, "Unknown channel"))
     ).all()
     by_channel = {
         row.name: {"videos": row.videos, "strategies": int(row.strategies)}
         for row in by_channel_rows
     }
 
-    # Last research
+    # Last research (LEFT JOIN to include entries with NULL topic_id)
     last_row = session.execute(
         select(
             Topic.slug.label("topic"),
             ResearchHistory.researched_at,
             ResearchHistory.strategies_found,
         )
-        .join(Topic, ResearchHistory.topic_id == Topic.id)
+        .select_from(ResearchHistory)
+        .outerjoin(Topic, ResearchHistory.topic_id == Topic.id)
         .order_by(ResearchHistory.researched_at.desc())
         .limit(1)
     ).first()

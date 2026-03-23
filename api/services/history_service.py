@@ -123,19 +123,27 @@ async def get_history_stats(db: AsyncSession) -> dict[str, Any]:
     )
     total_strategies_found = total_strats_r.scalar_one()
 
-    # By topic
+    # By topic (LEFT JOIN to include entries with NULL topic_id)
     by_topic_rows = await db.execute(
-        select(Topic.slug, func.count())
-        .join(ResearchHistory, ResearchHistory.topic_id == Topic.id)
-        .group_by(Topic.slug)
+        select(
+            func.coalesce(Topic.slug, "Uncategorized").label("slug"),
+            func.count(),
+        )
+        .select_from(ResearchHistory)
+        .outerjoin(Topic, ResearchHistory.topic_id == Topic.id)
+        .group_by(func.coalesce(Topic.slug, "Uncategorized"))
     )
     by_topic = {row[0]: row[1] for row in by_topic_rows.all()}
 
-    # By channel
+    # By channel (LEFT JOIN to include entries with NULL channel_id)
     by_channel_rows = await db.execute(
-        select(Channel.name, func.count())
-        .join(ResearchHistory, ResearchHistory.channel_id == Channel.id)
-        .group_by(Channel.name)
+        select(
+            func.coalesce(Channel.name, "Unknown channel").label("name"),
+            func.count(),
+        )
+        .select_from(ResearchHistory)
+        .outerjoin(Channel, ResearchHistory.channel_id == Channel.id)
+        .group_by(func.coalesce(Channel.name, "Unknown channel"))
     )
     by_channel = {row[0]: row[1] for row in by_channel_rows.all()}
 

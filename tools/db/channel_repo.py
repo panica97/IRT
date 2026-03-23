@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from .models import Channel, Topic
@@ -156,3 +156,9 @@ def get_topics_as_dict(session: Session) -> dict[str, Any]:
             ],
         }
     return {"topics": result}
+
+
+def get_channel_by_name(session: Session, name: str) -> Channel | None:
+    """Return a channel by name (case-insensitive), or ``None``."""
+    stmt = select(Channel).where(func.lower(Channel.name) == name.lower())
+    return session.execute(stmt).scalar_one_or_none()

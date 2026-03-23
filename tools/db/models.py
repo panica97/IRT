@@ -157,6 +157,9 @@ class ResearchSession(Base):
     topic_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("topics.id")
     )
+    label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    strategies_found: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    drafts_created: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     step: Mapped[int] = mapped_column(Integer, default=0)
     step_name: Mapped[Optional[str]] = mapped_column(String(50))
     total_steps: Mapped[int] = mapped_column(Integer, default=6)

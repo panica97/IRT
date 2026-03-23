@@ -105,6 +105,7 @@ def insert_strategy(session: Session, data: dict[str, Any]) -> Strategy:
         session,
         name=data["name"],
         description=data.get("description"),
+        source_channel_id=data.get("source_channel_id"),
         source_videos=data.get("source_videos"),
         parameters=data.get("parameters"),
         entry_rules=data.get("entry_rules"),

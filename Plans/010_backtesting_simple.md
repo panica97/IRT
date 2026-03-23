@@ -89,3 +89,33 @@ Fix the backtest condition format mismatch that causes the engine to produce 0 t
 - This is a hotfix inserted after Phase 10 completion to unblock backtesting
 - All 3 tasks are independent quick fixes — no SDD overhead needed
 - After completion, re-run the strat_code 9007 backtest to verify trades are generated
+
+---
+
+## Phase 10.2 — Research Pipeline Flexibility
+
+**Status:** Planned
+**Priority:** HIGH — frontend is unusable without this for non-standard pipeline entry points
+**Parent Phase:** Phase 10.2 from Master Plan
+**Depends on:** Phase 10.1
+
+### Goal
+
+Make the research pipeline produce complete frontend-visible output regardless of entry point. Whether the input is a topic, a video URL, or a raw idea, the pipeline must always create: research sessions, properly linked history records, parent strategy records, and drafts.
+
+Currently, session tracking, history linking, and parent strategy creation only work when the full pipeline runs from step 0 (yt-scraper). When steps are skipped (e.g., single video input), the downstream tracking breaks — the frontend shows nothing.
+
+### Sub-phases
+
+| # | Task | Route | SDD Status | Status |
+|---|------|-------|------------|--------|
+| 1 | Session tracking for all entry points: the research agent must call `create_session()` at pipeline start and `complete_session()` at pipeline end, regardless of which steps are skipped. Update `.claude/agents/research/AGENT.md` to make session tracking mandatory and independent of pipeline steps. `tools/db/research_repo.py` already has the functions — they just need to be called consistently. | SDD | — | Planned |
+| 2 | research_history linking for all entry points: when a video URL is provided directly (no yt-scraper), the pipeline must still resolve or create the topic and channel references. For a direct video URL: extract channel info from video metadata (yt-dlp provides this), find or create the channel record, and link it. For a topic: use the existing topic record. For a raw idea (no video): create a history entry with a synthetic source. Ensure `topic_id` and `channel_id` are never NULL in `research_history`. | SDD | — | Planned |
+| 3 | Parent strategy creation from drafts: the db-manager must create parent `strategy` records when saving drafts. Each unique "parent strategy" (from strategy-variants) should map to one strategy record. Drafts link to their parent strategy via foreign key. This makes the Strategies page show strategies with their draft variants underneath. Update `.claude/skills/db-manager/SKILL.md` to include this step. | SDD | — | Planned |
+
+### Notes
+
+- All 3 tasks routed through SDD due to cross-cutting scope across agent, skills, and DB layer
+- The DB schema and API endpoints already exist; the gap is in how the research agent and skills call them depending on entry point
+- Root cause: research pipeline was built assuming full pipeline execution from yt-scraper; alternative entry points (video URL, raw idea) skip steps that create the relational scaffolding the UI needs
+- After completion, test all three entry points (topic, video URL, raw idea) and verify History and Strategies pages populate correctly for each

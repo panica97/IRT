@@ -37,10 +37,10 @@ async def get_sessions(
             delta = session.completed_at - session.started_at
             duration_seconds = int(delta.total_seconds())
 
-        # Fetch related history items (videos) for this session's topic
+        # Fetch related history items (videos) for this session
         # within the session's time window
         videos: list[dict[str, Any]] = []
-        if session.topic_id and session.started_at:
+        if session.started_at:
             video_q = (
                 select(
                     ResearchHistory.video_id,
@@ -51,9 +51,12 @@ async def get_sessions(
                     Channel.name.label("channel_name"),
                 )
                 .outerjoin(Channel, ResearchHistory.channel_id == Channel.id)
-                .where(ResearchHistory.topic_id == session.topic_id)
                 .where(ResearchHistory.researched_at >= session.started_at)
             )
+            if session.topic_id is not None:
+                video_q = video_q.where(
+                    ResearchHistory.topic_id == session.topic_id
+                )
             if session.completed_at:
                 video_q = video_q.where(
                     ResearchHistory.researched_at <= session.completed_at
@@ -73,6 +76,10 @@ async def get_sessions(
             "id": session.id,
             "status": session.status,
             "topic": topic_slug,
+            "label": session.label,
+            "title": topic_slug or session.label or "Untitled session",
+            "strategies_found": session.strategies_found,
+            "drafts_created": session.drafts_created,
             "started_at": session.started_at,
             "completed_at": session.completed_at,
             "duration_seconds": duration_seconds,
@@ -107,10 +114,10 @@ async def get_session_by_id(
         delta = session.completed_at - session.started_at
         duration_seconds = int(delta.total_seconds())
 
-    # Fetch related history items (videos) for this session's topic
+    # Fetch related history items (videos) for this session
     # within the session's time window
     videos: list[dict[str, Any]] = []
-    if session.topic_id and session.started_at:
+    if session.started_at:
         video_q = (
             select(
                 ResearchHistory.video_id,
@@ -122,9 +129,12 @@ async def get_session_by_id(
                 Channel.name.label("channel_name"),
             )
             .outerjoin(Channel, ResearchHistory.channel_id == Channel.id)
-            .where(ResearchHistory.topic_id == session.topic_id)
             .where(ResearchHistory.researched_at >= session.started_at)
         )
+        if session.topic_id is not None:
+            video_q = video_q.where(
+                ResearchHistory.topic_id == session.topic_id
+            )
         if session.completed_at:
             video_q = video_q.where(
                 ResearchHistory.researched_at <= session.completed_at
@@ -145,7 +155,11 @@ async def get_session_by_id(
         "id": session.id,
         "status": session.status,
         "topic": topic_slug,
+        "label": session.label,
+        "title": topic_slug or session.label or "Untitled session",
         "topic_id": session.topic_id,
+        "strategies_found": session.strategies_found,
+        "drafts_created": session.drafts_created,
         "started_at": session.started_at,
         "completed_at": session.completed_at,
         "duration_seconds": duration_seconds,

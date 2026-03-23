@@ -10,8 +10,19 @@ yt-scraper -> notebooklm-analyst -> strategy-variants -> strategy-translator -> 
 
 ## Input
 
-- `topic` -- el topic a investigar (debe existir en `data/channels/channels.yaml`)
+- `input` -- one of:
+  - A topic slug (must exist in `data/channels/channels.yaml`) -- runs full pipeline
+  - A YouTube video URL (https://youtube.com/watch?v=... or https://youtu.be/...) -- skips Steps 1 and 1.5
+  - A raw idea string (anything else) -- skips Steps 1, 1.5, and 2
 - `save_conversations` -- (optional, default false) si true, guardar el historial de conversaciones con NotebookLM antes del cleanup
+
+## Entry Point Detection
+
+Determine the entry point type from the input:
+
+1. **URL**: input matches `youtube.com/watch` or `youtu.be/` -> VIDEO entry point
+2. **Topic**: input matches a slug in `data/channels/channels.yaml` -> TOPIC entry point
+3. **Idea**: anything else -> IDEA entry point
 
 ## Early Stop Signals
 
@@ -47,6 +58,10 @@ NO ejecutar ningun otro paso si el preflight falla.
 
 ### Step 1: YouTube Scraper
 
+**VIDEO and IDEA entry points**: Skip this step entirely.
+For VIDEO: extract metadata with `yt-dlp --print title --print channel --print channel_url <url>`.
+For IDEA: no video metadata needed.
+
 Ejecuta:
 
 ```bash
@@ -72,6 +87,8 @@ Si `DATABASE_URL` no esta configurado, usar fallback YAML: leer `data/research/h
 **Si hay videos nuevos**: Recoge las URLs para el Step 1.5.
 
 ### Step 1.5: Video Classifier
+
+**VIDEO and IDEA entry points**: Skip this step entirely.
 
 Clasifica los videos nuevos para filtrar los que no contienen estrategias de trading.
 
@@ -106,6 +123,9 @@ with sync_session_ctx() as session:
 **Si hay videos strategy**: Continuar al Step 2 con esos videos.
 
 ### Step 2: NotebookLM Analyst
+
+**IDEA entry point**: Skip this step. Format the idea text as a strategy YAML and pass directly to Step 3.
+**VIDEO entry point**: Use the single video URL as the only source.
 
 Usa el skill `notebooklm-analyst` (leer `.claude/skills/notebooklm-analyst/SKILL.md` para el workflow detallado).
 
@@ -154,6 +174,9 @@ El translator traduce CADA variante a un JSON draft IBKR (1 variante = 1 JSON). 
 
 ### Step 5: Cleanup y registro de historial
 
+**IDEA entry point**: No notebook to delete, no history to record. Skip to Step 6.
+**VIDEO entry point**: Record history with topic_id=None. channel_id is resolved if the channel exists in DB, otherwise None.
+
 **Si `save_conversations` es true**, guardar el historial ANTES de borrar el notebook:
 
 ```bash
@@ -197,20 +220,60 @@ Si `DATABASE_URL` no esta configurado, usar fallback YAML: anadir entradas a `da
 
 ### Step 6: DB Manager
 
-Guarda las estrategias en PostgreSQL con deduplicacion:
+Guarda las estrategias padre y sus drafts variantes en PostgreSQL. Sigue el flujo definido en `.claude/skills/db-manager/SKILL.md`.
+
+El proceso es:
+
+1. **Group variants by `parent_strategy`** name from the strategy-variants output
+2. **For each parent strategy**:
+   a. Resolve `source_channel` name to `source_channel_id` using `get_channel_by_name()`
+   b. Call `insert_strategy()` with `source_channel_id` in the data dict
+   c. Capture the returned `Strategy.id`
+3. **For each variant draft** of that parent:
+   a. Call `upsert_draft()` with `strategy_id=parent.id` to link the draft
 
 ```python
 from tools.db.session import sync_session_ctx
 from tools.db.strategy_repo import insert_strategy
+from tools.db.draft_repo import upsert_draft
+from tools.db.channel_repo import get_channel_by_name
 
 with sync_session_ctx() as session:
-    for strategy_data in strategies:
-        result = insert_strategy(session, strategy_data)
-        # Dedup automatica por nombre (case-insensitive)
-        # Si ya existe, se actualiza (upsert)
-```
+    # Group variants by parent_strategy name
+    parents = {}
+    for variant in all_variants:
+        pname = variant["parent_strategy"]
+        parents.setdefault(pname, []).append(variant)
 
-El `strategy_data` dict debe tener: `name` (required), `description`, `source_videos`, `parameters`, `entry_rules`, `exit_rules`, `risk_management`, `notes`.
+    for parent_name, variants in parents.items():
+        # Resolve channel name to ID if available
+        source_channel_id = None
+        ch_name = variants[0].get("source_channel")
+        if ch_name:
+            ch = get_channel_by_name(session, ch_name)
+            if ch:
+                source_channel_id = ch.id
+
+        # Create/update parent strategy
+        parent = insert_strategy(session, {
+            "name": parent_name,
+            "description": variants[0].get("description", ""),
+            "source_channel_id": source_channel_id,
+            "source_videos": variants[0].get("source_videos", []),
+            "entry_rules": variants[0].get("entry_rules", []),
+            "exit_rules": variants[0].get("exit_rules", []),
+        })
+
+        # Create drafts linked to parent
+        for v in variants:
+            upsert_draft(
+                session,
+                strat_code=v["strat_code"],
+                strat_name=v["variant_name"],
+                data=v["draft_json"],
+                strategy_id=parent.id,
+            )
+```
 
 ### Step 7: Resumen
 
@@ -233,26 +296,38 @@ strategies:
     todo_fields: [<campos marcados como _TODO>]
 ```
 
-## Session Tracking (when DATABASE_URL is set)
+## Session Tracking
 
-Track progress in PostgreSQL so the frontend Live page can show real-time updates.
+Session tracking is MANDATORY for ALL entry points when DATABASE_URL is set. Track progress in PostgreSQL so the frontend Live page can show real-time updates.
 
 ```python
 from tools.db.session import sync_session_ctx
 from tools.db.research_repo import create_session, update_session_step, complete_session, error_session
 
-# At pipeline start:
+# At pipeline start -- call create_session() based on entry point:
 with sync_session_ctx() as session:
-    research_session = create_session(session, topic_slug)
+    # TOPIC entry point:
+    research_session = create_session(session, topic_slug=topic)
+
+    # VIDEO entry point:
+    research_session = create_session(session, label=f"Video: {video_title or video_url}")
+
+    # IDEA entry point:
+    research_session = create_session(session, label=f"Idea: {idea_text[:100]}")
+
     session_id = research_session.id
 
-# At each step:
+# At each step (even if some steps are skipped):
 with sync_session_ctx() as session:
     update_session_step(session, session_id, step=1, step_name="yt-scraper", channel="ChannelName", videos=["url1"])
 
-# On completion:
+# On completion -- always pass stats:
 with sync_session_ctx() as session:
-    complete_session(session, session_id, result_summary={"topic": topic_slug, "videos_processed": 5, "strategies_found": 2})
+    complete_session(session, session_id,
+        result_summary={"topic": topic_slug, "videos_processed": 5, "strategies_found": 2},
+        strategies_found=<count>,
+        drafts_created=<count>,
+    )
 
 # On error:
 with sync_session_ctx() as session:

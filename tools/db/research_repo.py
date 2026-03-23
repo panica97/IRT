@@ -40,20 +40,26 @@ def _resolve_topic_id(session: Session, topic_slug: str) -> int | None:
 # Research sessions
 # ---------------------------------------------------------------------------
 
-def create_session(session: Session, topic_slug: str) -> ResearchSession:
+def create_session(
+    session: Session,
+    topic_slug: str | None = None,
+    label: str | None = None,
+) -> ResearchSession:
     """Create a new research session in 'running' state.
 
     Args:
         session: SQLAlchemy sync session.
-        topic_slug: The topic slug being researched.
+        topic_slug: The topic slug being researched (optional).
+        label: Free-text description for non-topic sessions (optional).
 
     Returns:
         The newly created ``ResearchSession`` row.
     """
-    topic_id = _resolve_topic_id(session, topic_slug)
+    topic_id = _resolve_topic_id(session, topic_slug) if topic_slug else None
     rs = ResearchSession(
         status="running",
         topic_id=topic_id,
+        label=label,
         step=0,
         step_name="preflight",
         total_steps=6,
@@ -95,6 +101,8 @@ def complete_session(
     session: Session,
     session_id: int,
     result_summary: dict[str, Any] | None = None,
+    strategies_found: int | None = None,
+    drafts_created: int | None = None,
 ) -> None:
     """Mark a research session as completed.
 
@@ -107,6 +115,10 @@ def complete_session(
     rs.status = "completed"
     rs.completed_at = datetime.utcnow()
     rs.result_summary = result_summary
+    if strategies_found is not None:
+        rs.strategies_found = strategies_found
+    if drafts_created is not None:
+        rs.drafts_created = drafts_created
     rs.updated_at = datetime.utcnow()
     session.flush()
     _notify(session, session_id)
