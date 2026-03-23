@@ -119,3 +119,37 @@ Currently, session tracking, history linking, and parent strategy creation only 
 - The DB schema and API endpoints already exist; the gap is in how the research agent and skills call them depending on entry point
 - Root cause: research pipeline was built assuming full pipeline execution from yt-scraper; alternative entry points (video URL, raw idea) skip steps that create the relational scaffolding the UI needs
 - After completion, test all three entry points (topic, video URL, raw idea) and verify History and Strategies pages populate correctly for each
+
+---
+
+## Phase 10.3 — Backtest Result View
+
+**Status:** Planned
+**Priority:** MEDIUM — improves backtest usability
+**Parent Phase:** Phase 10.3 from Master Plan
+**Depends on:** Phase 10
+
+### Goal
+
+Improve the backtest results display in the frontend. Replace less useful metric cards with more meaningful ones (Return/Drawdown ratio, Max DD %), and add a toggleable PnL equity curve chart for visual analysis of strategy performance over time.
+
+### Sub-phases
+
+| # | Task | Route | SDD Status | Status |
+|---|------|-------|------------|--------|
+| 1 | Replace Net PnL metric card with Return/Drawdown ratio (return % divided by max drawdown %). Compute on the frontend from existing metrics (total_pnl, initial_equity, max_drawdown). | quick fix | — | Planned |
+| 2 | Replace Max Drawdown (absolute) card with Max Drawdown % (percentage of account). Compute as max_drawdown / initial_equity * 100. | quick fix | — | Planned |
+| 3 | Add PnL equity curve chart (line chart of cumulative PnL over time). Hidden by default with a toggle button to show/hide. May require the engine to return equity curve data points in the metrics JSONB, or compute from trades list on the frontend. | quick fix | — | Planned |
+
+### Files to Modify
+
+- `frontend/src/components/strategies/BacktestPanel.tsx` — metric cards and new chart component
+- `frontend/src/types/backtest.ts` — type updates if equity curve data is added to metrics
+
+### Notes
+
+- Return/Drawdown ratio = (total_pnl / initial_equity * 100) / (max_drawdown / initial_equity * 100), simplifies to total_pnl / max_drawdown
+- Max DD % = max_drawdown / initial_equity * 100
+- Equity curve data may need to come from the engine (array of cumulative PnL at each trade close) or be computed from the trades list if individual trades are available
+- If engine changes are needed, the worker and bridge may also need updates to pass through equity curve data
+- Chart library TBD — consider lightweight option (e.g., recharts, already common in React projects)

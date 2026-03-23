@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
-import { Play, Trash2, ChevronDown, ChevronUp, AlertCircle, Loader2, Info } from 'lucide-react';
+import { Play, Trash2, ChevronDown, ChevronUp, AlertCircle, Loader2, Info, TrendingUp } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { createBacktest, getBacktestsByDraft, getBacktest, deleteBacktest } from '../../services/backtests';
-import type { BacktestJobSummary, BacktestMetrics } from '../../types/backtest';
+import type { BacktestJobSummary, BacktestMetrics, BacktestTrade } from '../../types/backtest';
 
 interface BacktestPanelProps {
   stratCode: number;
@@ -81,27 +82,107 @@ function MetricCard({ label, value, colorClass }: { label: string; value: string
 }
 
 function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
-  const pnl = metrics.total_pnl ?? 0;
   const winRate = metrics.win_rate ?? 0;
-  const maxDD = metrics.max_drawdown ?? 0;
   const sharpe = metrics.sharpe_ratio ?? 0;
   const trades = metrics.total_trades ?? metrics.trade_count ?? 0;
-  const pnlColor = pnl >= 0 ? 'text-accent' : 'text-danger';
-  const drawdownColor = 'text-danger';
+
+  // Return / Drawdown ratio card
+  const returnPct = metrics.return_pct as number | undefined;
+  const maxDdPct = metrics.max_drawdown_pct as number | undefined;
+  let ratioValue: string;
+  let ratioColor: string;
+  if (returnPct != null && maxDdPct != null && maxDdPct !== 0) {
+    const ratio = returnPct / maxDdPct;
+    ratioValue = ratio.toFixed(2);
+    ratioColor = ratio > 1 ? 'text-accent' : 'text-danger';
+  } else if (metrics.total_pnl != null && metrics.max_drawdown != null && metrics.max_drawdown !== 0) {
+    const ratio = Math.abs(metrics.total_pnl / metrics.max_drawdown);
+    ratioValue = ratio.toFixed(2);
+    ratioColor = ratio > 1 ? 'text-accent' : 'text-danger';
+  } else {
+    ratioValue = 'N/A';
+    ratioColor = 'text-text-muted';
+  }
+
+  // Max DD % card
+  let ddPctValue: string;
+  if (maxDdPct != null) {
+    ddPctValue = formatPercent(maxDdPct);
+  } else {
+    // Fallback: compute from absolute max_drawdown / initial_equity
+    const absDd = metrics.max_drawdown as number | undefined;
+    const initialEquity = metrics.initial_equity as number | undefined;
+    if (absDd != null && initialEquity != null && initialEquity !== 0) {
+      ddPctValue = formatPercent(Math.abs(absDd) / initialEquity * 100);
+    } else {
+      ddPctValue = 'N/A';
+    }
+  }
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-      <MetricCard label="Net PnL" value={formatCurrency(pnl)} colorClass={pnlColor} />
+      <MetricCard label="Return / DD" value={ratioValue} colorClass={ratioColor} />
       <MetricCard label="Win Rate" value={formatPercent(winRate)} />
-      <MetricCard label="Max Drawdown" value={formatCurrency(maxDD)} colorClass={drawdownColor} />
+      <MetricCard label="Max DD %" value={ddPctValue} colorClass="text-danger" />
       <MetricCard label="Sharpe Ratio" value={sharpe.toFixed(2)} />
       <MetricCard label="Total Trades" value={String(trades)} />
     </div>
   );
 }
 
+function EquityCurveChart({ trades }: { trades: BacktestTrade[] }) {
+  const data = useMemo(() => {
+    const sorted = [...trades].sort(
+      (a, b) => new Date(a.exit_date).getTime() - new Date(b.exit_date).getTime(),
+    );
+    let cumPnl = 0;
+    return sorted.map((t) => {
+      cumPnl += t.pnl;
+      return { date: t.exit_date, cumPnl: Number(cumPnl.toFixed(2)) };
+    });
+  }, [trades]);
+
+  return (
+    <div className="mt-2 border border-border rounded-lg p-3 bg-surface-1/30">
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
+            tickLine={false}
+            tickFormatter={(v: number) => formatCurrency(v)}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '0.375rem',
+              fontSize: '0.75rem',
+            }}
+            labelStyle={{ color: 'var(--color-text-muted)' }}
+            formatter={(value) => [formatCurrency(Number(value)), 'Cumulative PnL']}
+          />
+          <Line
+            type="monotone"
+            dataKey="cumPnl"
+            stroke="var(--color-accent)"
+            strokeWidth={1.5}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function JobResultsView({ jobId }: { jobId: number }) {
   const [showTrades, setShowTrades] = useState(false);
+  const [showEquityCurve, setShowEquityCurve] = useState(false);
 
   const { data: job } = useQuery({
     queryKey: ['backtest', jobId],
@@ -112,11 +193,25 @@ function JobResultsView({ jobId }: { jobId: number }) {
     return <p className="text-xs text-text-muted italic">Loading results...</p>;
   }
 
-  const { metrics, trades } = job.result;
+  const { metrics, trades = [] } = job.result;
 
   return (
     <div className="mt-2 space-y-2">
       <MetricsGrid metrics={metrics as BacktestMetrics} />
+
+      {trades.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowEquityCurve(!showEquityCurve)}
+            className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors"
+          >
+            {showEquityCurve ? <ChevronUp size={14} /> : <TrendingUp size={14} />}
+            {showEquityCurve ? 'Hide' : 'Show'} Equity Curve
+          </button>
+
+          {showEquityCurve && <EquityCurveChart trades={trades} />}
+        </div>
+      )}
 
       {trades.length > 0 && (
         <div>

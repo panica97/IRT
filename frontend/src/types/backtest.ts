@@ -9,6 +9,9 @@ export interface BacktestMetrics {
   profit_factor: number;
   sortino_ratio: number;
   trade_count: number;
+  return_pct?: number;
+  max_drawdown_pct?: number;
+  initial_equity?: number;
   [key: string]: unknown;
 }
 
