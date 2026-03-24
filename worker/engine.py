@@ -172,23 +172,24 @@ def run_engine(
 def _find_parquet(strategies_path: str, strat_code: int) -> str | None:
     """Search for trades.parquet in the engine output directory.
 
-    The engine writes trades to ``{output_folder}/{strategy}/{YYYYMMDD_XXX}/trades.parquet``.
-    The output folder is typically near the strategies_path or in a known location.
-    We search recursively for the most recently created trades.parquet.
+    The engine writes trades to ``{BACKTEST_LOGS_PATH}/{strategy}/{YYYYMMDD_XXX}/trades.parquet``.
+    BACKTEST_LOGS_PATH is ``logs_backtest/`` under the engine's project root.
     """
-    search_root = Path(strategies_path)
+    # The engine saves to logs_backtest/ relative to its own root
+    engine_root = Path(Config().engine_path).parent  # main.py -> backtest-engine/
+    logs_path = engine_root / "logs_backtest"
 
-    # Search within the strategies path tree first
-    parquet_files = list(search_root.rglob("trades.parquet"))
+    if logs_path.exists():
+        parquet_files = list(logs_path.rglob("trades.parquet"))
+        if parquet_files:
+            parquet_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return str(parquet_files[0])
 
-    if not parquet_files:
-        # Also check parent directory and siblings
-        parent = search_root.parent
-        parquet_files = list(parent.rglob("trades.parquet"))
+    # Fallback: search strategies_path and its parent
+    for search_root in [Path(strategies_path), Path(strategies_path).parent]:
+        parquet_files = list(search_root.rglob("trades.parquet"))
+        if parquet_files:
+            parquet_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return str(parquet_files[0])
 
-    if not parquet_files:
-        return None
-
-    # Return the most recently modified one
-    parquet_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return str(parquet_files[0])
+    return None

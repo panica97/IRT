@@ -271,7 +271,7 @@ function JobItem({ job, onDelete, onViewReport }: { job: BacktestJobSummary; onD
     <div className="border border-border rounded-lg overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-1/30 transition-colors"
+        className="group w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-1/30 transition-colors"
       >
         <StatusBadge status={job.status} />
         {isCompleteMode && (
@@ -296,14 +296,16 @@ function JobItem({ job, onDelete, onViewReport }: { job: BacktestJobSummary; onD
             Report
           </button>
         )}
-        {job.status === 'pending' && (
+        {job.status !== 'running' && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onDelete(job.id);
+              if (window.confirm('Delete this backtest job?')) {
+                onDelete(job.id);
+              }
             }}
-            className="p-1 text-text-muted hover:text-danger transition-colors"
-            title="Cancel"
+            className="p-1 text-text-muted hover:text-danger transition-colors opacity-0 group-hover:opacity-100"
+            title="Delete"
           >
             <Trash2 size={12} />
           </button>
@@ -339,13 +341,16 @@ function JobItem({ job, onDelete, onViewReport }: { job: BacktestJobSummary; onD
 
 const TIMEFRAME_OPTIONS = [
   { value: '1m', label: '1 min' },
-  { value: '5m', label: '5 min' },
-  { value: '15m', label: '15 min' },
-  { value: '30m', label: '30 min' },
+  { value: '5m', label: '5 mins' },
+  { value: '15m', label: '15 mins' },
+  { value: '30m', label: '30 mins' },
   { value: '1H', label: '1 hour' },
+  { value: '2H', label: '2 hours' },
+  { value: '3H', label: '3 hours' },
   { value: '4H', label: '4 hours' },
   { value: '8H', label: '8 hours' },
   { value: '1D', label: '1 day' },
+  { value: '1W', label: '1 week' },
 ] as const;
 
 export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, primaryTimeframe }: BacktestPanelProps) {

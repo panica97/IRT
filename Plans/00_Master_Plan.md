@@ -29,6 +29,7 @@
 | 11 | Multi-Timeframe Complete Backtest | Complete backtest mode with trade capture, timeframe remapping, debug save, and full-screen report drawer | HIGH | Phase 10.4 | /sdd-new | Planned |
 | 12 | Synthetic Data (Monte Carlo) | Generate synthetic price data to test strategy robustness | HIGH | Phase 11 | /sdd-ff | Planned |
 | 13 | Metrics & Analysis | Compute and compare metrics from real and synthetic backtests | HIGH | Phase 12 | /sdd-ff | Planned |
+| 14 | Worker Dockerization | Containerize the backtest worker for VPS deployment. Dockerfile with Python 3.12, pandas, pyarrow. Mount historical data and engine as volumes. Add worker service to docker-compose. | MEDIUM | Phase 11 | /sdd-new | Planned |
 
 ---
 
@@ -36,10 +37,10 @@
 
 | Metric | Count |
 |--------|-------|
-| Total phases | 17 |
+| Total phases | 18 |
 | Completed | 14 |
 | In Progress | 0 |
-| Planned | 3 |
+| Planned | 4 |
 
 ---
 

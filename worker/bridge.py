@@ -21,13 +21,21 @@ logger = logging.getLogger("irt-worker.bridge")
 # Canonical mapping: human-readable timeframe label -> engine indCode suffix
 TIMEFRAME_SUFFIX: dict[str, str] = {
     "1 min": "1m",
-    "5 min": "5m",
-    "15 min": "15m",
-    "30 min": "30m",
+    "2 mins": "2m",
+    "3 mins": "3m",
+    "5 mins": "5m",
+    "10 mins": "10m",
+    "15 mins": "15m",
+    "20 mins": "20m",
+    "30 mins": "30m",
     "1 hour": "1H",
+    "2 hours": "2H",
+    "3 hours": "3H",
     "4 hours": "4H",
     "8 hours": "8H",
     "1 day": "1D",
+    "1 week": "1W",
+    "1 month": "1M",
 }
 
 # Reverse mapping: suffix -> label (for validation lookups)
@@ -99,8 +107,8 @@ def remap_timeframe(data: dict, target_tf: str) -> dict:
     old_sfx = f"_{source_suffix}"
     new_sfx = f"_{target_suffix}"
 
-    # 1. Remap process_freq
-    result["process_freq"] = target_suffix
+    # 1. Remap process_freq (engine expects the label, e.g. "15 mins", not suffix)
+    result["process_freq"] = target_label
 
     # 2. Remap ind_list keys and indCode values
     ind_list = result.get("ind_list", {})
@@ -202,11 +210,11 @@ def validate_remapped_json(data: dict) -> list[str]:
 
     # --- Layer 1: Schema validation ---
 
-    # process_freq must be a non-empty string matching a known suffix
+    # process_freq must be a non-empty string matching a known label or suffix
     if not process_freq or not isinstance(process_freq, str):
         errors.append("process_freq is missing or empty")
-    elif process_freq not in _VALID_SUFFIXES:
-        errors.append(f"process_freq '{process_freq}' is not a recognized suffix")
+    elif process_freq not in TIMEFRAME_SUFFIX and process_freq not in _VALID_SUFFIXES:
+        errors.append(f"process_freq '{process_freq}' is not a recognized timeframe")
 
     # ind_list must be a non-empty dict
     ind_list = data.get("ind_list")
@@ -244,7 +252,12 @@ def validate_remapped_json(data: dict) -> list[str]:
 
     # --- Layer 2: Consistency validation ---
 
-    expected_suffix = f"_{process_freq}"
+    # Resolve process_freq to suffix for consistency checks
+    try:
+        _pf_suffix = _resolve_suffix(process_freq)
+    except ValueError:
+        _pf_suffix = process_freq
+    expected_suffix = f"_{_pf_suffix}"
 
     # Collect all ind_list keys for reference checking
     all_ind_keys: set[str] = set()

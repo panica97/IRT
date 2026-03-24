@@ -139,7 +139,7 @@ function ReportEquityCurve({ trades }: { trades: BacktestTradeComplete[] }) {
   }
 
   const finalPnl = data[data.length - 1].cumPnl;
-  const lineColor = finalPnl >= 0 ? 'var(--color-accent)' : 'var(--color-danger)';
+  const lineColor = finalPnl >= 0 ? '#10b981' : '#ef4444';
 
   return (
     <div className="border border-border rounded-lg p-4 bg-surface-1/30">
