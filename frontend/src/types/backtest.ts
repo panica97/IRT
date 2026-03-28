@@ -29,75 +29,101 @@ export interface BacktestMetrics {
   [key: string]: unknown;
 }
 
-// Monte Carlo result types
-export interface MCPercentileValues {
+// Monte Carlo result types — flat structure (no nested statistics wrapper)
+
+/** Percentile distribution for a single metric */
+export interface MCDistribution {
   p5: number;
+  p10?: number;
   p25: number;
   p50: number;
   p75: number;
+  p90?: number;
   p95: number;
-}
-
-export interface MCStatistic {
-  mean: number;
-  median: number;
-  std: number;
-  min: number;
-  max: number;
-  p5: number;
-  p25: number;
-  p75: number;
-  p95: number;
-}
-
-export interface MCStatistics {
-  total_pnl: MCStatistic;
-  max_drawdown_pct: MCStatistic;
-  sharpe_ratio: MCStatistic;
-  win_rate: MCStatistic;
-  profit_factor: MCStatistic;
-  raw_metrics?: {
-    total_pnl: number[];
-    max_drawdown_pct: number[];
-    sharpe_ratio: number[];
-    win_rate: number[];
-    profit_factor: number[];
-    [key: string]: number[];
-  };
-  [key: string]: unknown;
+  min?: number;
+  max?: number;
+  median?: number;
 }
 
 export interface MCRiskMetrics {
-  prob_negative_return: number;
-  prob_dd_20: number;
-  prob_dd_30: number;
-  prob_dd_50: number;
   var_95: number;
   cvar_95: number;
+  prob_dd_10?: number;
+  prob_dd_20?: number;
+  prob_dd_30?: number;
+  prob_dd_50?: number;
+  prob_negative_return?: number;
 }
 
-export interface MCComparison {
-  return_percentile: number;
-  assessment: string;
+export interface MCRawMetrics {
+  total_pnl?: number[];
+  max_drawdown_pct?: number[];
+  sharpe_ratio?: number[];
+  win_rate?: number[];
+  profit_factor?: number[];
+  [key: string]: number[] | undefined;
 }
 
-export interface MCEquityCurvePoint {
-  step: number;
-  p5: number;
-  p25: number;
-  p50: number;
-  p75: number;
-  p95: number;
-  baseline?: number;
+export interface MCEquityCurvePercentiles {
+  p5?: number[];
+  p25?: number[];
+  p50?: number[];
+  p75?: number[];
+  p95?: number[];
+}
+
+export interface MCConfidenceIntervals {
+  return_95_ci?: [number, number];
+  sharpe_95_ci?: [number, number];
+  drawdown_95_ci?: [number, number];
+}
+
+export interface MCDrawdownCurvePercentiles {
+  p5?: number[];
+  p25?: number[];
+  p50?: number[];
+  p75?: number[];
+  p95?: number[];
 }
 
 export interface MonteCarloMetrics {
-  statistics: MCStatistics;
-  risk_metrics: MCRiskMetrics;
-  comparison: MCComparison;
-  equity_curve_percentiles: MCEquityCurvePoint[];
+  // Simulation info
   n_paths: number;
-  fit_years: number;
+  n_completed?: number;
+  n_failed?: number;
+  failure_rate?: number;
+
+  // Per-metric distributions (flat, no statistics wrapper)
+  total_pnl?: MCDistribution;
+  max_drawdown_pct?: MCDistribution;
+  sharpe_ratio?: MCDistribution;
+  win_rate?: MCDistribution;
+  profit_factor?: MCDistribution;
+  total_trades?: MCDistribution;
+  avg_trade_pnl?: MCDistribution;
+  sortino_ratio?: MCDistribution;
+
+  // Risk
+  risk_metrics?: MCRiskMetrics;
+
+  // Raw per-path arrays
+  raw_metrics?: MCRawMetrics;
+
+  // Equity curve percentiles (arrays of values, not array of point objects)
+  equity_curve_percentiles?: MCEquityCurvePercentiles;
+
+  // Sampled equity curves
+  sampled_paths?: number[][];
+  historical_close?: number[];
+  sampled_close_paths?: number[][];
+
+  // Confidence intervals
+  confidence_intervals?: MCConfidenceIntervals;
+
+  // Drawdown curve percentiles
+  drawdown_curve_percentiles?: MCDrawdownCurvePercentiles;
+
+  [key: string]: unknown;
 }
 
 export interface BacktestTrade {

@@ -6,7 +6,7 @@ import {
   AreaChart, Area, BarChart, Bar, Cell, ReferenceLine,
 } from 'recharts';
 import { getBacktest } from '../../services/backtests';
-import type { BacktestTradeComplete, BacktestMetrics, MonteCarloMetrics, MCEquityCurvePoint } from '../../types/backtest';
+import type { BacktestTradeComplete, BacktestMetrics, MonteCarloMetrics, MCDistribution } from '../../types/backtest';
 
 interface BacktestReportDrawerProps {
   jobId: number;
@@ -17,12 +17,14 @@ interface BacktestReportDrawerProps {
 type SortField = 'entry_date' | 'exit_date' | 'side' | 'entry_fill_price' | 'exit_fill_price' | 'pnl' | 'cumulative_pnl' | 'exit_reason' | 'bars_held';
 type SortDir = 'asc' | 'desc';
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | null | undefined): string {
+  if (value == null) return 'N/A';
   const sign = value >= 0 ? '+' : '';
   return `${sign}$${value.toFixed(2)}`;
 }
 
-function formatPercent(value: number): string {
+function formatPercent(value: number | null | undefined): string {
+  if (value == null) return 'N/A';
   return `${value.toFixed(1)}%`;
 }
 
@@ -129,7 +131,7 @@ function ReportEquityCurve({ trades }: { trades: BacktestTradeComplete[] }) {
     );
     return sorted.map((t) => ({
       date: t.exit_date,
-      cumPnl: Number(t.cumulative_pnl.toFixed(2)),
+      cumPnl: Number((t.cumulative_pnl ?? 0).toFixed(2)),
     }));
   }, [trades]);
 
@@ -264,8 +266,8 @@ function TradesTable({ trades }: { trades: BacktestTradeComplete[] }) {
                     {trade.side === 'long' ? 'Long' : 'Short'}
                   </span>
                 </td>
-                <td className="px-2 py-1.5 text-right text-text-secondary">{trade.entry_fill_price.toFixed(2)}</td>
-                <td className="px-2 py-1.5 text-right text-text-secondary">{trade.exit_fill_price.toFixed(2)}</td>
+                <td className="px-2 py-1.5 text-right text-text-secondary">{(trade.entry_fill_price ?? 0).toFixed(2)}</td>
+                <td className="px-2 py-1.5 text-right text-text-secondary">{(trade.exit_fill_price ?? 0).toFixed(2)}</td>
                 <td className={`px-2 py-1.5 text-right font-medium ${trade.pnl >= 0 ? 'text-accent' : 'text-danger'}`}>
                   {formatCurrency(trade.pnl)}
                 </td>
@@ -285,7 +287,30 @@ function TradesTable({ trades }: { trades: BacktestTradeComplete[] }) {
 
 // ─── Monte Carlo Report Components ───────────────────────────────────
 
-function MCFanChart({ data }: { data: MCEquityCurvePoint[] }) {
+interface FanChartPoint {
+  step: number;
+  p5: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  p95: number;
+}
+
+function MCFanChart({ mc }: { mc: MonteCarloMetrics }) {
+  const data = useMemo<FanChartPoint[]>(() => {
+    const ecp = mc.equity_curve_percentiles;
+    if (!ecp?.p50 || ecp.p50.length === 0) return [];
+    const len = ecp.p50.length;
+    return Array.from({ length: len }, (_, i) => ({
+      step: i,
+      p5: ecp.p5?.[i] ?? ecp.p50![i],
+      p25: ecp.p25?.[i] ?? ecp.p50![i],
+      p50: ecp.p50![i],
+      p75: ecp.p75?.[i] ?? ecp.p50![i],
+      p95: ecp.p95?.[i] ?? ecp.p50![i],
+    }));
+  }, [mc.equity_curve_percentiles]);
+
   if (data.length === 0) {
     return (
       <div className="border border-border rounded-lg p-6 bg-surface-1/30 text-center">
@@ -312,7 +337,7 @@ function MCFanChart({ data }: { data: MCEquityCurvePoint[] }) {
           <YAxis
             tick={{ fontSize: 10, fill: '#9ca3af' }}
             tickLine={false}
-            tickFormatter={(v: number) => `$${v.toFixed(0)}`}
+            tickFormatter={(v: number) => `$${(v ?? 0).toFixed(0)}`}
           />
           <Tooltip
             contentStyle={{
@@ -325,7 +350,7 @@ function MCFanChart({ data }: { data: MCEquityCurvePoint[] }) {
             formatter={(value, name) => {
               const labels: Record<string, string> = {
                 p5: 'P5', p25: 'P25', p50: 'P50 (Median)',
-                p75: 'P75', p95: 'P95', baseline: 'Baseline',
+                p75: 'P75', p95: 'P95',
               };
               return [`$${Number(value).toFixed(2)}`, labels[String(name)] ?? String(name)];
             }}
@@ -338,10 +363,6 @@ function MCFanChart({ data }: { data: MCEquityCurvePoint[] }) {
           <Area type="monotone" dataKey="p25" stroke="none" fill="#3b82f6" fillOpacity={0.1} />
           {/* P50 median line */}
           <Line type="monotone" dataKey="p50" stroke="#3b82f6" strokeWidth={2} dot={false} />
-          {/* Baseline overlay */}
-          {data[0]?.baseline != null && (
-            <Line type="monotone" dataKey="baseline" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 3" dot={false} />
-          )}
         </AreaChart>
       </ResponsiveContainer>
       <div className="flex items-center gap-4 mt-2 text-xs text-text-muted justify-center">
@@ -354,19 +375,16 @@ function MCFanChart({ data }: { data: MCEquityCurvePoint[] }) {
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-2 rounded" style={{ backgroundColor: '#3b82f6' }} /> Median
         </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-0.5 rounded" style={{ backgroundColor: '#f59e0b' }} /> Baseline
-        </span>
       </div>
     </div>
   );
 }
 
 function MCSummaryCards({ mc }: { mc: MonteCarloMetrics }) {
-  const medianPnl = mc.statistics.total_pnl?.median ?? 0;
-  const medianDD = mc.statistics.max_drawdown_pct?.median ?? 0;
-  const probLoss = mc.risk_metrics.prob_negative_return ?? 0;
-  const var95 = mc.risk_metrics.var_95 ?? 0;
+  const medianPnl = mc.total_pnl?.median ?? mc.total_pnl?.p50 ?? 0;
+  const medianDD = mc.max_drawdown_pct?.median ?? mc.max_drawdown_pct?.p50 ?? 0;
+  const probLoss = mc.risk_metrics?.prob_negative_return ?? 0;
+  const var95 = mc.risk_metrics?.var_95 ?? 0;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -410,43 +428,34 @@ function MCSummaryCards({ mc }: { mc: MonteCarloMetrics }) {
   );
 }
 
-function MCOverfittingCard({ mc }: { mc: MonteCarloMetrics }) {
-  const pctile = mc.comparison.return_percentile ?? 50;
-  const assessment = mc.comparison.assessment ?? '';
+function MCSimulationSummary({ mc }: { mc: MonteCarloMetrics }) {
+  const nPaths = mc.n_paths ?? 0;
+  const nCompleted = mc.n_completed ?? nPaths;
+  const failureRate = mc.failure_rate ?? 0;
 
-  let colorClass: string;
-  let bgClass: string;
-  let label: string;
-  if (pctile <= 30) {
-    colorClass = 'text-green-400';
-    bgClass = 'border-green-500/30 bg-green-500/5';
-    label = 'Robust — baseline performs worse than most simulations';
-  } else if (pctile <= 70) {
-    colorClass = 'text-amber-400';
-    bgClass = 'border-amber-500/30 bg-amber-500/5';
-    label = 'Typical — baseline consistent with simulations';
-  } else {
-    colorClass = 'text-red-400';
-    bgClass = 'border-red-500/30 bg-red-500/5';
-    label = 'Caution — baseline may be overfit';
-  }
+  const colorClass = failureRate > 0.1 ? 'text-amber-400' : 'text-green-400';
+  const bgClass = failureRate > 0.1 ? 'border-amber-500/30 bg-amber-500/5' : 'border-green-500/30 bg-green-500/5';
 
   return (
     <div className={`border rounded-lg p-4 ${bgClass}`}>
       <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-        <ShieldAlert size={14} />
-        Overfitting Assessment
+        <Shuffle size={14} />
+        Simulation Summary
       </h3>
-      <div className="flex items-center gap-3 mb-2">
-        <span className={`text-2xl font-bold ${colorClass}`}>
-          {pctile.toFixed(0)}th
-        </span>
-        <span className="text-xs text-text-muted">percentile</span>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <p className="text-xs text-text-muted mb-1">Paths Requested</p>
+          <p className="text-lg font-bold text-text-primary">{nPaths}</p>
+        </div>
+        <div>
+          <p className="text-xs text-text-muted mb-1">Paths Completed</p>
+          <p className={`text-lg font-bold ${colorClass}`}>{nCompleted}</p>
+        </div>
+        <div>
+          <p className="text-xs text-text-muted mb-1">Failure Rate</p>
+          <p className={`text-lg font-bold ${colorClass}`}>{((failureRate ?? 0) * 100).toFixed(1)}%</p>
+        </div>
       </div>
-      <p className={`text-sm font-medium ${colorClass} mb-1`}>{label}</p>
-      {assessment && (
-        <p className="text-xs text-text-muted mt-2">{assessment}</p>
-      )}
     </div>
   );
 }
@@ -461,12 +470,12 @@ interface HistogramBin {
 
 function MCPnlHistogram({ mc, baselinePnl }: { mc: MonteCarloMetrics; baselinePnl?: number }) {
   const bins = useMemo<HistogramBin[]>(() => {
-    const rawPnls = mc.statistics.raw_metrics?.total_pnl;
+    const rawPnls = mc.raw_metrics?.total_pnl;
     if (!rawPnls || rawPnls.length === 0) return [];
 
     const min = Math.min(...rawPnls);
     const max = Math.max(...rawPnls);
-    if (min === max) return [{ binStart: min, binEnd: max, label: `$${min.toFixed(0)}`, count: rawPnls.length, isAboveBaseline: false }];
+    if (min === max) return [{ binStart: min, binEnd: max, label: `$${(min ?? 0).toFixed(0)}`, count: rawPnls.length, isAboveBaseline: false }];
 
     const nBins = 20;
     const binWidth = (max - min) / nBins;
@@ -478,7 +487,7 @@ function MCPnlHistogram({ mc, baselinePnl }: { mc: MonteCarloMetrics; baselinePn
       result.push({
         binStart,
         binEnd,
-        label: `$${binStart.toFixed(0)}`,
+        label: `$${(binStart ?? 0).toFixed(0)}`,
         count,
         isAboveBaseline: baselinePnl != null ? binStart >= baselinePnl : false,
       });
@@ -530,7 +539,7 @@ function MCPnlHistogram({ mc, baselinePnl }: { mc: MonteCarloMetrics; baselinePn
             ))}
           </Bar>
           {baselinePnl != null && (
-            <ReferenceLine x={`$${baselinePnl.toFixed(0)}`} stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 3" label={{ value: 'Baseline', position: 'top', fill: '#f59e0b', fontSize: 10 }} />
+            <ReferenceLine x={`$${(baselinePnl ?? 0).toFixed(0)}`} stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 3" label={{ value: 'Baseline', position: 'top', fill: '#f59e0b', fontSize: 10 }} />
           )}
         </BarChart>
       </ResponsiveContainer>
@@ -540,11 +549,11 @@ function MCPnlHistogram({ mc, baselinePnl }: { mc: MonteCarloMetrics; baselinePn
 
 function MCPercentileTable({ mc }: { mc: MonteCarloMetrics }) {
   const rows = [
-    { label: 'Total PnL', key: 'total_pnl', fmt: (v: number) => `$${v.toFixed(2)}` },
-    { label: 'Max DD %', key: 'max_drawdown_pct', fmt: (v: number) => `${v.toFixed(1)}%` },
-    { label: 'Sharpe', key: 'sharpe_ratio', fmt: (v: number) => v.toFixed(2) },
-    { label: 'Win Rate', key: 'win_rate', fmt: (v: number) => `${v.toFixed(1)}%` },
-    { label: 'Profit Factor', key: 'profit_factor', fmt: (v: number) => v.toFixed(2) },
+    { label: 'Total PnL', key: 'total_pnl', fmt: (v: number | null | undefined) => v != null ? `$${v.toFixed(2)}` : 'N/A' },
+    { label: 'Max DD %', key: 'max_drawdown_pct', fmt: (v: number | null | undefined) => v != null ? `${v.toFixed(1)}%` : 'N/A' },
+    { label: 'Sharpe', key: 'sharpe_ratio', fmt: (v: number | null | undefined) => v != null ? v.toFixed(2) : 'N/A' },
+    { label: 'Win Rate', key: 'win_rate', fmt: (v: number | null | undefined) => v != null ? `${v.toFixed(1)}%` : 'N/A' },
+    { label: 'Profit Factor', key: 'profit_factor', fmt: (v: number | null | undefined) => v != null ? v.toFixed(2) : 'N/A' },
   ];
 
   return (
@@ -567,16 +576,16 @@ function MCPercentileTable({ mc }: { mc: MonteCarloMetrics }) {
           </thead>
           <tbody>
             {rows.map((row) => {
-              const stat = mc.statistics[row.key] as { p5: number; p25: number; p50: number; p75: number; p95: number } | undefined;
+              const stat = mc[row.key] as MCDistribution | undefined;
               if (!stat) return null;
               return (
                 <tr key={row.key} className="border-t border-border/50">
                   <td className="px-3 py-2 text-text-secondary font-medium">{row.label}</td>
-                  <td className="px-3 py-2 text-right text-text-secondary">{row.fmt(stat.p5)}</td>
-                  <td className="px-3 py-2 text-right text-text-secondary">{row.fmt(stat.p25)}</td>
-                  <td className="px-3 py-2 text-right text-text-primary font-semibold">{row.fmt(stat.p50)}</td>
-                  <td className="px-3 py-2 text-right text-text-secondary">{row.fmt(stat.p75)}</td>
-                  <td className="px-3 py-2 text-right text-text-secondary">{row.fmt(stat.p95)}</td>
+                  <td className="px-3 py-2 text-right text-text-secondary">{row.fmt(stat?.p5)}</td>
+                  <td className="px-3 py-2 text-right text-text-secondary">{row.fmt(stat?.p25)}</td>
+                  <td className="px-3 py-2 text-right text-text-primary font-semibold">{row.fmt(stat?.p50 ?? stat?.median)}</td>
+                  <td className="px-3 py-2 text-right text-text-secondary">{row.fmt(stat?.p75)}</td>
+                  <td className="px-3 py-2 text-right text-text-secondary">{row.fmt(stat?.p95)}</td>
                 </tr>
               );
             })}
@@ -589,13 +598,24 @@ function MCPercentileTable({ mc }: { mc: MonteCarloMetrics }) {
 
 function MCRiskTable({ mc }: { mc: MonteCarloMetrics }) {
   const rm = mc.risk_metrics;
+  if (!rm) return null;
+
+  const probNeg = rm.prob_negative_return ?? 0;
+  const probDd10 = rm.prob_dd_10 ?? 0;
+  const probDd20 = rm.prob_dd_20 ?? 0;
+  const probDd30 = rm.prob_dd_30 ?? 0;
+  const probDd50 = rm.prob_dd_50 ?? 0;
+  const var95 = rm.var_95 ?? 0;
+  const cvar95 = rm.cvar_95 ?? 0;
+
   const rows = [
-    { label: 'Probability of negative return', value: `${(rm.prob_negative_return * 100).toFixed(1)}%`, color: rm.prob_negative_return > 0.5 ? 'text-red-400' : 'text-green-400' },
-    { label: 'Probability of >20% drawdown', value: `${(rm.prob_dd_20 * 100).toFixed(1)}%`, color: rm.prob_dd_20 > 0.5 ? 'text-red-400' : rm.prob_dd_20 > 0.3 ? 'text-amber-400' : 'text-green-400' },
-    { label: 'Probability of >30% drawdown', value: `${(rm.prob_dd_30 * 100).toFixed(1)}%`, color: rm.prob_dd_30 > 0.3 ? 'text-red-400' : rm.prob_dd_30 > 0.15 ? 'text-amber-400' : 'text-green-400' },
-    { label: 'Probability of >50% drawdown', value: `${(rm.prob_dd_50 * 100).toFixed(1)}%`, color: rm.prob_dd_50 > 0.1 ? 'text-red-400' : 'text-green-400' },
-    { label: 'VaR 95%', value: `$${rm.var_95.toFixed(2)}`, color: 'text-red-400' },
-    { label: 'CVaR 95%', value: `$${rm.cvar_95.toFixed(2)}`, color: 'text-red-400' },
+    { label: 'Probability of negative return', value: `${(probNeg * 100).toFixed(1)}%`, color: probNeg > 0.5 ? 'text-red-400' : 'text-green-400' },
+    ...(rm.prob_dd_10 != null ? [{ label: 'Probability of >10% drawdown', value: `${(probDd10 * 100).toFixed(1)}%`, color: probDd10 > 0.5 ? 'text-red-400' : probDd10 > 0.3 ? 'text-amber-400' : 'text-green-400' }] : []),
+    ...(rm.prob_dd_20 != null ? [{ label: 'Probability of >20% drawdown', value: `${(probDd20 * 100).toFixed(1)}%`, color: probDd20 > 0.5 ? 'text-red-400' : probDd20 > 0.3 ? 'text-amber-400' : 'text-green-400' }] : []),
+    ...(rm.prob_dd_30 != null ? [{ label: 'Probability of >30% drawdown', value: `${(probDd30 * 100).toFixed(1)}%`, color: probDd30 > 0.3 ? 'text-red-400' : probDd30 > 0.15 ? 'text-amber-400' : 'text-green-400' }] : []),
+    ...(rm.prob_dd_50 != null ? [{ label: 'Probability of >50% drawdown', value: `${(probDd50 * 100).toFixed(1)}%`, color: probDd50 > 0.1 ? 'text-red-400' : 'text-green-400' }] : []),
+    { label: 'VaR 95%', value: `$${var95.toFixed(2)}`, color: 'text-red-400' },
+    { label: 'CVaR 95%', value: `$${cvar95.toFixed(2)}`, color: 'text-red-400' },
   ];
 
   return (
@@ -626,26 +646,20 @@ function MCRiskTable({ mc }: { mc: MonteCarloMetrics }) {
   );
 }
 
-function MonteCarloReport({ mc, baselinePnl }: { mc: MonteCarloMetrics; baselinePnl?: number }) {
+function MonteCarloReport({ mc }: { mc: MonteCarloMetrics }) {
   return (
     <div className="space-y-6">
-      {/* Config info */}
-      <div className="flex items-center gap-3 text-xs text-text-muted">
-        <Shuffle size={14} />
-        <span>{mc.n_paths} paths &middot; {mc.fit_years} years</span>
-      </div>
+      {/* Simulation summary */}
+      <MCSimulationSummary mc={mc} />
 
       {/* Summary cards */}
       <MCSummaryCards mc={mc} />
 
-      {/* Overfitting assessment */}
-      <MCOverfittingCard mc={mc} />
-
       {/* Fan chart */}
-      <MCFanChart data={mc.equity_curve_percentiles ?? []} />
+      <MCFanChart mc={mc} />
 
       {/* PnL histogram */}
-      <MCPnlHistogram mc={mc} baselinePnl={baselinePnl} />
+      <MCPnlHistogram mc={mc} />
 
       {/* Percentile table */}
       <MCPercentileTable mc={mc} />
@@ -699,10 +713,6 @@ export default function BacktestReportDrawer({ jobId, open, onClose }: BacktestR
   const mcMetrics = isMC ? (job?.result?.metrics as unknown as MonteCarloMetrics | undefined) : undefined;
   const trades = (job?.result?.trades ?? []) as unknown as BacktestTradeComplete[];
 
-  // For MC histogram, try to get baseline PnL from comparison or first equity curve point
-  const baselinePnl = isMC && mcMetrics?.equity_curve_percentiles?.length
-    ? mcMetrics.equity_curve_percentiles[mcMetrics.equity_curve_percentiles.length - 1]?.baseline
-    : undefined;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -747,7 +757,7 @@ export default function BacktestReportDrawer({ jobId, open, onClose }: BacktestR
           {!job?.result ? (
             <p className="text-sm text-text-muted italic">Loading report data...</p>
           ) : isMC && mcMetrics ? (
-            <MonteCarloReport mc={mcMetrics} baselinePnl={baselinePnl} />
+            <MonteCarloReport mc={mcMetrics} />
           ) : (
             <>
               {/* Metrics */}
