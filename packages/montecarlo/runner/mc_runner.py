@@ -199,6 +199,38 @@ class MonteCarloRunner:
         )
         print(f"  Historical data loaded in {time.time() - t1:.1f}s")
 
+        # --- 1b. Load extended data for baseline if start_date is before fit window ---
+        baseline_data_start = fit_start_date  # default: baseline uses same data
+        if start_date and fit_start_date:
+            if start_date < fit_start_date:
+                print(f"  Baseline start {start_date} is before fit window {fit_start_date}, "
+                      f"loading extended data for baseline...")
+                baseline_hist_data = preprocessor.load_and_resample(
+                    symbol=symbol,
+                    timeframes=timeframes,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                baseline_data_start = start_date
+                print(f"  WARNING: Baseline window ({start_date} to {end_date}) extends "
+                      f"before model fitting window ({fit_start_date}). Model was fitted "
+                      f"on different data than the baseline period.")
+                # Validate extended data has expected range
+                ext_base_tf = list(baseline_hist_data.keys())[0]
+                ext_dates = baseline_hist_data[ext_base_tf]["date"]
+                if len(ext_dates) > 0:
+                    ext_start_actual = str(ext_dates[0].date())
+                    if ext_start_actual > start_date:
+                        print(f"  WARNING: Baseline data starts at {ext_start_actual}, "
+                              f"later than requested {start_date}. Data may be incomplete.")
+            else:
+                baseline_hist_data = hist_data_all
+        elif start_date and not fit_start_date:
+            # fit_years=0 (all data) — no truncation, reuse same data
+            baseline_hist_data = hist_data_all
+        else:
+            baseline_hist_data = hist_data_all
+
         # --- 2. Fit generator on raw 1-min data (full fitting window) ---
         self._report_phase("fitting_model", "Fitting GARCH + OHLC model...")
         t2 = time.time()
@@ -218,7 +250,9 @@ class MonteCarloRunner:
         # If start_date/end_date are provided, filter to that exact date range
         # (matching the original backtest period). Otherwise fall back to
         # "last sim_bars trading days" of all data.
-        base_df_all = hist_data_all[base_tf]
+        # Use baseline_hist_data (which may have extended range) instead of
+        # hist_data_all (which is limited to the fit window).
+        base_df_all = baseline_hist_data[base_tf]
 
         # Count unique trading dates to derive bars-per-day
         base_dates = base_df_all["date"].dt.date()
@@ -275,7 +309,7 @@ class MonteCarloRunner:
         bl_end_dt = datetime.strptime(baseline_end, "%Y-%m-%d").replace(
             hour=23, minute=59, second=59
         )
-        for tf, df in hist_data_all.items():
+        for tf, df in baseline_hist_data.items():
             baseline_data[tf] = df.filter(
                 (pl.col("date") >= bl_start_dt) &
                 (pl.col("date") <= bl_end_dt)
