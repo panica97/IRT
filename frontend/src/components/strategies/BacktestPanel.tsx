@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { Play, Trash2, ChevronDown, ChevronUp, AlertCircle, Loader2, Info, TrendingUp, FileText, Shuffle } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { createBacktest, getBacktestsByDraft, getBacktest, deleteBacktest } from '../../services/backtests';
 import type { BacktestJobSummary, BacktestMetrics, BacktestTrade, BacktestMode } from '../../types/backtest';
+import type { Instrument } from '../../types/instrument';
 import BacktestReportDrawer from './BacktestReportDrawer';
 
 interface BacktestPanelProps {
@@ -12,6 +13,7 @@ interface BacktestPanelProps {
   backtestable: boolean;
   defaultSymbol?: string;
   primaryTimeframe?: string;
+  instruments?: Instrument[];
 }
 
 const STATUS_CONFIG = {
@@ -362,7 +364,7 @@ const TIMEFRAME_OPTIONS = [
   { value: '1W', label: '1 week' },
 ] as const;
 
-export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, primaryTimeframe }: BacktestPanelProps) {
+export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, primaryTimeframe, instruments }: BacktestPanelProps) {
   const [symbol, setSymbol] = useState(defaultSymbol ?? '');
   const [startDate, setStartDate] = useState('');
   const [backtestMode, setBacktestMode] = useState<BacktestMode>('simple');
@@ -373,6 +375,34 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
   const [formError, setFormError] = useState<string | null>(null);
   const [selectedReportJobId, setSelectedReportJobId] = useState<number | null>(null);
   const queryClient = useQueryClient();
+
+  // Look up the matched instrument for data range constraints
+  const matchedInstrument = useMemo(() => {
+    if (!instruments || !symbol.trim()) return undefined;
+    return instruments.find((i) => i.symbol.toLowerCase() === symbol.trim().toLowerCase());
+  }, [instruments, symbol]);
+
+  const dataMin = matchedInstrument?.data_from?.slice(0, 10) ?? undefined;
+  const dataMax = matchedInstrument?.data_to?.slice(0, 10) ?? undefined;
+
+  // Auto-populate / clamp dates when symbol changes and instrument data is available
+  useEffect(() => {
+    if (!dataMin || !dataMax) return;
+
+    setStartDate((prev) => {
+      if (!prev) return dataMin;
+      if (prev < dataMin) return dataMin;
+      if (prev > dataMax) return dataMax;
+      return prev;
+    });
+
+    setEndDate((prev) => {
+      if (!prev) return dataMax;
+      if (prev > dataMax) return dataMax;
+      if (prev < dataMin) return dataMin;
+      return prev;
+    });
+  }, [dataMin, dataMax]);
 
   const { data: backtestList } = useQuery({
     queryKey: ['backtests', stratCode],
@@ -506,6 +536,8 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              min={dataMin}
+              max={dataMax}
               className="w-full text-xs bg-surface-2 text-text-primary border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent"
             />
           </div>
@@ -515,6 +547,8 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              min={dataMin}
+              max={dataMax}
               className="w-full text-xs bg-surface-2 text-text-primary border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent"
             />
           </div>
