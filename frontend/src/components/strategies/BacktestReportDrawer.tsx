@@ -6,7 +6,7 @@ import {
   BarChart, Bar, Cell, ReferenceLine,
 } from 'recharts';
 import { getBacktest } from '../../services/backtests';
-import type { BacktestTradeComplete, BacktestMetrics, MonteCarloMetrics, MCDistribution } from '../../types/backtest';
+import type { BacktestTradeComplete, BacktestMetrics, MonteCarloMetrics, MCDistribution, MCBaselineMetrics } from '../../types/backtest';
 
 interface BacktestReportDrawerProps {
   jobId: number;
@@ -457,6 +457,8 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
     return { retDDDist: dist, retDDRaw: rawArr };
   }, [mc]);
 
+  const baseline = mc.baseline_metrics as MCBaselineMetrics | undefined;
+
   const rows = useMemo(() => {
     const defs: {
       label: string;
@@ -464,6 +466,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
       rawArr: number[] | undefined;
       fmt: (v: number) => string;
       higherIsBetter: boolean;
+      baselineKey: keyof MCBaselineMetrics;
     }[] = [
       {
         label: 'Return / DD',
@@ -471,6 +474,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
         rawArr: retDDRaw,
         fmt: (v) => Number(v).toFixed(2),
         higherIsBetter: true,
+        baselineKey: 'return_drawdown_ratio',
       },
       {
         label: 'Max DD %',
@@ -478,6 +482,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
         rawArr: mc.raw_metrics?.max_drawdown_pct,
         fmt: (v) => `${Number(v).toFixed(1)}%`,
         higherIsBetter: false,
+        baselineKey: 'max_drawdown_pct',
       },
       {
         label: 'Sharpe',
@@ -485,12 +490,14 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
         rawArr: mc.raw_metrics?.sharpe_ratio,
         fmt: (v) => Number(v).toFixed(2),
         higherIsBetter: true,
+        baselineKey: 'sharpe_ratio',
       },
     ];
 
     return defs.map((d) => {
-      // Use median as "actual" if no separate baseline
-      const actual = d.dist?.median ?? d.dist?.p50;
+      // Prefer real baseline metric; fall back to MC median for old jobs
+      const baselineVal = baseline?.[d.baselineKey];
+      const actual = (baselineVal != null ? Number(baselineVal) : null) ?? d.dist?.median ?? d.dist?.p50;
       const rank = d.rawArr && actual != null ? percentileRank(d.rawArr, actual) : null;
 
       // Z-Score = (actual - mean) / std
@@ -511,7 +518,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
         fmt: d.fmt,
       };
     });
-  }, [mc, retDDDist, retDDRaw]);
+  }, [mc, baseline, retDDDist, retDDRaw]);
 
   function rankColor(rank: number | null, higherIsBetter: boolean): string {
     if (rank == null) return 'text-text-secondary';
@@ -707,9 +714,13 @@ function MCDistributionsGrid({ mc }: { mc: MonteCarloMetrics }) {
     return { retDDRaw: rawArr, retDDDist: dist };
   }, [mc]);
 
-  const retDDActual = retDDDist?.median ?? retDDDist?.p50;
+  const baseline = mc.baseline_metrics;
+  // Prefer real baseline; fall back to MC median for old jobs
+  const retDDActual = (baseline?.return_drawdown_ratio != null ? Number(baseline.return_drawdown_ratio) : null)
+    ?? retDDDist?.median ?? retDDDist?.p50;
   const ddDist = mc.max_drawdown_pct as MCDistribution | undefined;
-  const ddActual = ddDist?.median ?? ddDist?.p50;
+  const ddActual = (baseline?.max_drawdown_pct != null ? Number(baseline.max_drawdown_pct) : null)
+    ?? ddDist?.median ?? ddDist?.p50;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

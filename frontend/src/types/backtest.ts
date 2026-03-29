@@ -29,6 +29,22 @@ export interface BacktestMetrics {
   [key: string]: unknown;
 }
 
+/** Baseline (historical backtest) metrics returned alongside MC results */
+export interface MCBaselineMetrics {
+  total_pnl?: number;
+  trade_count?: number;
+  avg_trade_pnl?: number;
+  sharpe_ratio?: number;
+  sortino_ratio?: number;
+  profit_factor?: number;
+  max_drawdown_pct?: number;
+  win_rate_pct?: number;
+  return_drawdown_ratio?: number;
+  initial_equity?: number;
+  final_equity?: number;
+  [key: string]: unknown;
+}
+
 // Monte Carlo result types — flat structure (no nested statistics wrapper)
 
 /** Percentile distribution for a single metric */
@@ -125,6 +141,9 @@ export interface MonteCarloMetrics {
 
   // Drawdown curve percentiles
   drawdown_curve_percentiles?: MCDrawdownCurvePercentiles;
+
+  // Baseline (real historical backtest) metrics
+  baseline_metrics?: MCBaselineMetrics;
 
   [key: string]: unknown;
 }
