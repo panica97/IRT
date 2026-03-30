@@ -7,7 +7,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-BacktestMode = Literal["simple", "complete", "montecarlo"]
+BacktestMode = Literal["simple", "complete", "montecarlo", "monkey"]
 
 
 class BacktestCreateRequest(BaseModel):
@@ -19,6 +19,8 @@ class BacktestCreateRequest(BaseModel):
     mode: BacktestMode = "simple"
     n_paths: Optional[int] = None
     fit_years: Optional[int] = None
+    n_simulations: Optional[int] = None    # for monkey mode
+    monkey_mode: Optional[str] = None      # "A" or "B"
     debug: bool = False
 
 
@@ -42,6 +44,8 @@ class BacktestJobResponse(BaseModel):
     mode: str = "simple"
     n_paths: int | None = None
     fit_years: int | None = None
+    n_simulations: int | None = None
+    monkey_mode: str | None = None
     error_message: str | None = None
     created_at: datetime
     started_at: datetime | None = None
@@ -62,6 +66,8 @@ class BacktestJobSummary(BaseModel):
     mode: str = "simple"
     n_paths: int | None = None
     fit_years: int | None = None
+    n_simulations: int | None = None
+    monkey_mode: str | None = None
     error_message: str | None = None
     created_at: datetime
     started_at: datetime | None = None

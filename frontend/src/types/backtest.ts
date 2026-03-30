@@ -1,4 +1,4 @@
-export type BacktestMode = 'simple' | 'complete' | 'montecarlo';
+export type BacktestMode = 'simple' | 'complete' | 'montecarlo' | 'monkey';
 
 export interface BacktestTradeComplete {
   entry_date: string;
@@ -176,6 +176,8 @@ export interface BacktestJob {
   mode: BacktestMode;
   n_paths?: number;
   fit_years?: number;
+  n_simulations?: number;
+  monkey_mode?: string;
   error_message: string | null;
   created_at: string;
   started_at: string | null;
@@ -194,6 +196,8 @@ export interface BacktestJobSummary {
   mode: BacktestMode;
   n_paths?: number;
   fit_years?: number;
+  n_simulations?: number;
+  monkey_mode?: string;
   error_message: string | null;
   created_at: string;
   started_at: string | null;
@@ -214,5 +218,32 @@ export interface CreateBacktestParams {
   mode?: BacktestMode;
   n_paths?: number;
   fit_years?: number;
+  n_simulations?: number;
+  monkey_mode?: string;
   debug?: boolean;
+}
+
+export interface MonkeyRealStrategyMetrics {
+  net_profit: number;
+  max_drawdown: number;
+  return_dd: number;
+  win_rate: number;
+  profit_factor: number;
+}
+
+export interface MonkeyTestMetrics {
+  mode: string;
+  n_simulations: number;
+  n_trades_requested: number;
+  n_trades_actual: number;
+  real_strategy: MonkeyRealStrategyMetrics;
+  distribution: {
+    return_dd: number[];
+    net_profit: number[];
+    win_rate: number[];
+    profit_factor: number[];
+  };
+  percentile: number;
+  p_value: number;
+  warnings: string[];
 }

@@ -4,12 +4,14 @@ This module ties together the bridge (draft export), engine (subprocess run),
 and result reporting (HTTP calls back to the IRT API). It handles cleanup
 and error reporting so the main poll loop stays clean.
 
-Supports three modes:
+Supports four modes:
 - **simple**: Engine runs with --metrics-json only (unchanged).
 - **complete**: Bridge remaps timeframe, engine runs with --save --metrics-json,
   worker reads trades.parquet and posts trades alongside metrics.
 - **montecarlo**: Bridge remaps timeframe (if needed), MC runner simulates
   N paths and returns summary metrics. No trades parquet produced.
+- **monkey**: Bridge remaps timeframe, monkey-test runner generates N random-entry
+  simulations and compares to the real strategy. No trades parquet produced.
 """
 
 import json
@@ -23,6 +25,7 @@ from worker.bridge import export_draft_to_file, remap_timeframe, validate_remapp
 from worker.config import Config
 from worker.engine import run_engine
 from worker.mc_engine import run_montecarlo
+from worker.monkey_engine import run_monkey_test
 
 logger = logging.getLogger("irt-worker.executor")
 
@@ -189,6 +192,7 @@ def execute_backtest_job(job: dict, config: Config) -> None:
     mode = job.get("mode", "simple")
     is_complete = mode == "complete"
     is_montecarlo = mode == "montecarlo"
+    is_monkey = mode == "monkey"
     start_time = time.time()
 
     strategies_path: str | None = None
@@ -198,8 +202,8 @@ def execute_backtest_job(job: dict, config: Config) -> None:
         # 1. Export draft to temp file
         strategies_path = export_draft_to_file(job, config)
 
-        # 2. Timeframe remapping (complete and montecarlo modes)
-        if is_complete or is_montecarlo:
+        # 2. Timeframe remapping (complete, montecarlo, and monkey modes)
+        if is_complete or is_montecarlo or is_monkey:
             target_tf = job.get("timeframe", "")
             if not target_tf:
                 raise ValueError(f"{mode} mode requires a timeframe in the job")
@@ -228,10 +232,13 @@ def execute_backtest_job(job: dict, config: Config) -> None:
             )
             logger.info("Wrote remapped JSON to %s", strat_file)
 
-        # 3. Run engine (backtest or MC)
+        # 3. Run engine (backtest, MC, or monkey)
         if is_montecarlo:
             metrics = run_montecarlo(job, strategies_path, config)
             trades: list[dict] = []  # MC doesn't produce trades
+        elif is_monkey:
+            metrics = run_monkey_test(job, strategies_path, config)
+            trades = []  # Monkey test doesn't produce trades
         else:
             metrics = run_engine(
                 job, strategies_path, config, save=is_complete

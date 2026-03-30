@@ -6,7 +6,8 @@ import {
   BarChart, Bar, Cell, ReferenceLine,
 } from 'recharts';
 import { getBacktest } from '../../services/backtests';
-import type { BacktestTradeComplete, BacktestMetrics, MonteCarloMetrics, MCDistribution, MCBaselineMetrics } from '../../types/backtest';
+import type { BacktestTradeComplete, BacktestMetrics, MonteCarloMetrics, MCDistribution, MCBaselineMetrics, MonkeyTestMetrics } from '../../types/backtest';
+import MonkeyTestReport from './MonkeyTestReport';
 
 interface BacktestReportDrawerProps {
   jobId: number;
@@ -907,8 +908,10 @@ export default function BacktestReportDrawer({ jobId, open, onClose }: BacktestR
   if (!open) return null;
 
   const isMC = job?.mode === 'montecarlo';
+  const isMonkey = job?.mode === 'monkey';
   const metrics = job?.result?.metrics as BacktestMetrics | undefined;
   const mcMetrics = isMC ? (job?.result?.metrics as unknown as MonteCarloMetrics | undefined) : undefined;
+  const monkeyMetrics = isMonkey ? ((job?.result?.metrics as Record<string, unknown>)?.monkey as MonkeyTestMetrics | undefined) : undefined;
   const trades = (job?.result?.trades ?? []) as unknown as BacktestTradeComplete[];
 
 
@@ -926,7 +929,7 @@ export default function BacktestReportDrawer({ jobId, open, onClose }: BacktestR
         <div className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-text-primary">
-              {isMC ? 'Monte Carlo Report' : 'Backtest Report'}
+              {isMonkey ? 'Monkey Test Report' : isMC ? 'Monte Carlo Report' : 'Backtest Report'}
               {job && (
                 <span className="ml-2 text-sm font-normal text-text-muted">
                   #{job.id}
@@ -938,6 +941,9 @@ export default function BacktestReportDrawer({ jobId, open, onClose }: BacktestR
                 {job.symbol} &middot; {job.timeframe} &middot; {job.start_date} &rarr; {job.end_date}
                 {isMC && job.n_paths && (
                   <span> &middot; {job.n_paths} paths</span>
+                )}
+                {isMonkey && job.n_simulations && (
+                  <span> &middot; {job.n_simulations} simulations &middot; Mode {job.monkey_mode ?? '?'}</span>
                 )}
               </p>
             )}
@@ -954,6 +960,8 @@ export default function BacktestReportDrawer({ jobId, open, onClose }: BacktestR
         <div className="p-6 space-y-6">
           {!job?.result ? (
             <p className="text-sm text-text-muted italic">Loading report data...</p>
+          ) : isMonkey && monkeyMetrics ? (
+            <MonkeyTestReport monkey={monkeyMetrics} />
           ) : isMC && mcMetrics ? (
             <MonteCarloReport mc={mcMetrics} />
           ) : (

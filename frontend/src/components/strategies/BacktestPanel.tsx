@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
-import { Play, Trash2, ChevronDown, ChevronUp, AlertCircle, Loader2, Info, TrendingUp, FileText, Shuffle } from 'lucide-react';
+import { Play, Trash2, ChevronDown, ChevronUp, AlertCircle, Loader2, Info, TrendingUp, FileText, Shuffle, Bug } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { createBacktest, getBacktestsByDraft, getBacktest, deleteBacktest } from '../../services/backtests';
 import type { BacktestJobSummary, BacktestMetrics, BacktestTrade, BacktestMode } from '../../types/backtest';
@@ -269,6 +269,7 @@ function JobItem({ job, onDelete, onViewReport }: { job: BacktestJobSummary; onD
   const [expanded, setExpanded] = useState(false);
   const isCompleteMode = job.mode === 'complete';
   const isMCMode = job.mode === 'montecarlo';
+  const isMonkeyMode = job.mode === 'monkey';
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -287,11 +288,16 @@ function JobItem({ job, onDelete, onViewReport }: { job: BacktestJobSummary; onD
             Monte Carlo
           </span>
         )}
+        {isMonkeyMode && (
+          <span className="text-[10px] bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded px-1 py-0.5 font-medium">
+            Monkey Test
+          </span>
+        )}
         <span className="text-xs text-text-secondary flex-1">
           {job.symbol} &middot; {job.timeframe} &middot; {job.start_date} &rarr; {job.end_date}
         </span>
         <span className="text-xs text-text-muted">{formatRelativeTime(job.created_at)}</span>
-        {job.status === 'completed' && (isCompleteMode || isMCMode) && (
+        {job.status === 'completed' && (isCompleteMode || isMCMode || isMonkeyMode) && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -323,11 +329,14 @@ function JobItem({ job, onDelete, onViewReport }: { job: BacktestJobSummary; onD
 
       {expanded && (
         <div className="px-3 pb-3 bg-surface-1/20">
-          {job.status === 'completed' && job.mode !== 'montecarlo' && (
+          {job.status === 'completed' && job.mode !== 'montecarlo' && job.mode !== 'monkey' && (
             <JobResultsView jobId={job.id} />
           )}
           {job.status === 'completed' && job.mode === 'montecarlo' && (
             <p className="mt-2 text-xs text-text-muted italic">Click "Report" to view Monte Carlo results.</p>
+          )}
+          {job.status === 'completed' && job.mode === 'monkey' && (
+            <p className="mt-2 text-xs text-text-muted italic">Click "Report" to view Monkey Test results.</p>
           )}
           {job.status === 'failed' && job.error_message && (
             <div className="mt-2 flex items-start gap-2 bg-danger/10 border border-danger/20 rounded p-2">
@@ -373,6 +382,8 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
   const [nPaths, setNPaths] = useState(1000);
   const [fitYears, setFitYears] = useState(10);
   const [formError, setFormError] = useState<string | null>(null);
+  const [monkeyMode, setMonkeyMode] = useState<string>('A');
+  const [nSimulations, setNSimulations] = useState<number>(1000);
   const [selectedReportJobId, setSelectedReportJobId] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
@@ -457,11 +468,12 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
     createMutation.mutate({
       draft_strat_code: stratCode,
       symbol: symbol.trim(),
-      timeframe: (backtestMode === 'complete' || backtestMode === 'montecarlo') ? selectedTimeframe : (primaryTimeframe ?? '1h'),
+      timeframe: (backtestMode === 'complete' || backtestMode === 'montecarlo' || backtestMode === 'monkey') ? selectedTimeframe : (primaryTimeframe ?? '1h'),
       start_date: startDate,
       end_date: endDate,
       mode: backtestMode,
       ...(backtestMode === 'montecarlo' && { n_paths: nPaths, fit_years: fitYears }),
+      ...(backtestMode === 'monkey' && { n_simulations: nSimulations, monkey_mode: monkeyMode }),
     });
   };
 
@@ -517,6 +529,17 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
             <Shuffle size={12} />
             Monte Carlo
           </button>
+          <button
+            onClick={() => setBacktestMode('monkey')}
+            className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-medium transition-colors ${
+              backtestMode === 'monkey'
+                ? 'bg-orange-600 text-white'
+                : 'bg-surface-2 text-text-muted'
+            }`}
+          >
+            <Bug size={12} />
+            Monkey Test
+          </button>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -554,7 +577,7 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
           </div>
         </div>
 
-        {(backtestMode === 'complete' || backtestMode === 'montecarlo') && (
+        {(backtestMode === 'complete' || backtestMode === 'montecarlo' || backtestMode === 'monkey') && (
           <div>
             <label className="block text-xs text-text-muted mb-1">Timeframe</label>
             <select
@@ -598,6 +621,34 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
           </div>
         )}
 
+        {backtestMode === 'monkey' && (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Monkey Mode</label>
+              <select
+                value={monkeyMode}
+                onChange={(e) => setMonkeyMode(e.target.value)}
+                className="w-full text-xs bg-surface-2 text-text-primary border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value="A">A: Empirical Distribution</option>
+                <option value="B">B: Always Max Bars</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Simulations</label>
+              <select
+                value={nSimulations}
+                onChange={(e) => setNSimulations(parseInt(e.target.value))}
+                className="w-full text-xs bg-surface-2 text-text-primary border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value={1000}>1,000</option>
+                <option value={2500}>2,500</option>
+                <option value={5000}>5,000</option>
+              </select>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <button
             onClick={handleSubmit}
@@ -612,7 +663,7 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
             ) : (
               <>
                 <Play size={12} />
-                {backtestMode === 'montecarlo' ? 'Run Monte Carlo' : 'Run Backtest'}
+                {backtestMode === 'montecarlo' ? 'Run Monte Carlo' : backtestMode === 'monkey' ? 'Run Monkey Test' : 'Run Backtest'}
               </>
             )}
           </button>

@@ -66,6 +66,8 @@ async def create_job(
         mode=getattr(body, "mode", "simple"),
         n_paths=getattr(body, "n_paths", None),
         fit_years=getattr(body, "fit_years", None),
+        n_simulations=getattr(body, "n_simulations", None),
+        monkey_mode=getattr(body, "monkey_mode", None),
         debug=getattr(body, "debug", False),
     )
     db.add(job)
