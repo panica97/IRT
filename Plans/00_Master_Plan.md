@@ -2,7 +2,7 @@
 
 **Project:** IRT (Ideas Research Team)
 **Created:** 2026-03-22
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-03-31
 **Current Phase:** Phase 13 — Metrics & Analysis
 **Status:** Idle
 
@@ -31,6 +31,7 @@
 | 12.3 | Data Info | Scan worker historical data, display per-symbol date ranges in Instruments table | HIGH | Phase 12.2 | /sdd-new | Done |
 | 12.1 | Worker Unification | Copy backtest-engine + ibkr-core from Ops Platform into IRT/packages/, create project venv, update worker to use local engine. Make IRT fully self-contained with zero Ops Platform dependency | HIGH | Phase 11 | /sdd-new | Done |
 | 12.4 | Monkey Test | Statistical robustness test: random entries on real OHLC to validate strategy edge via p-value | HIGH | Phase 12.3 | /sdd-new | design | Done |
+| 12.5 | Stress Test (Parameter Sensitivity) | Sweep strategy parameters to test robustness — adapted from Ops Platform | HIGH | Phase 12.4 | /sdd-new | planning | Done |
 | 13 | Metrics & Analysis | Compute and compare metrics from real and synthetic backtests | HIGH | Phase 12.3 | /sdd-ff | Planned |
 | 14 | Worker Dockerization | Containerize the backtest worker for VPS deployment. Dockerfile with Python 3.12, pandas, pyarrow. Mount historical data and engine as volumes. Add worker service to docker-compose. | MEDIUM | Phase 11 | /sdd-new | Planned |
 
@@ -40,8 +41,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total phases | 20 |
-| Completed | 19 |
+| Total phases | 21 |
+| Completed | 20 |
 | In Progress | 0 |
 | Planned | 1 |
 
@@ -82,3 +83,5 @@
 | 2026-03-30 | Phase 12.4 | Completed | Monkey Test: core package, worker/API integration, frontend UI + report (a6e7012) |
 | 2026-03-30 | Phase 12.4 | Bugfix | Fix monkey test report: read metrics flat instead of nested .monkey key (9f58262) |
 | 2026-03-30 | Phase 12.4 | Docs | Add Monkey Test to backtesting documentation — section 6 with 8 subsections (0768410) |
+| 2026-03-31 | Phase 12.5 | Created | Stress Test: parameter sensitivity copied from Ops Platform, adapted to IRT patterns |
+| 2026-03-31 | Phase 12.5 | Completed | Core package + worker + API + migration + frontend integration (36869c2, 96642a9) |
