@@ -85,8 +85,8 @@ def aggregate_results(
         real_rdd_safe = real_rdd
 
     if len(rdd_arr) > 0:
-        percentile = float(np.sum(rdd_arr <= real_rdd_safe)) / len(rdd_arr) * 100.0
-        p_value = float(np.sum(rdd_arr >= real_rdd_safe)) / len(rdd_arr)
+        percentile = float(np.sum(rdd_arr < real_rdd_safe)) / len(rdd_arr) * 100.0
+        p_value = float(np.sum(rdd_arr > real_rdd_safe)) / len(rdd_arr)
     else:
         percentile = None
         p_value = None
