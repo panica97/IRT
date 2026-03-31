@@ -291,5 +291,6 @@ export interface StressTestMetrics {
     strategy_id: number;
     test_type: string;
     param_ranges: Record<string, number[]>;
+    base_params?: Record<string, number>;
   };
 }

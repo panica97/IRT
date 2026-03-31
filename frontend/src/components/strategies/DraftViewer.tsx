@@ -217,6 +217,7 @@ export default function DraftViewer({ draft }: DraftViewerProps) {
             defaultSymbol={parsed?.symbol}
             primaryTimeframe={parsed?.control_params?.primary_timeframe}
             instruments={instrumentsData}
+            draftData={draft.data}
           />
         </SectionPanel>
       </div>

@@ -7,6 +7,7 @@ import { createBacktest, getBacktestsByDraft, getBacktest, deleteBacktest } from
 import type { BacktestJobSummary, BacktestMetrics, BacktestTrade, BacktestMode } from '../../types/backtest';
 import type { Instrument } from '../../types/instrument';
 import BacktestReportDrawer from './BacktestReportDrawer';
+import StressParamBuilder from './StressParamBuilder';
 
 interface BacktestPanelProps {
   stratCode: number;
@@ -14,6 +15,7 @@ interface BacktestPanelProps {
   defaultSymbol?: string;
   primaryTimeframe?: string;
   instruments?: Instrument[];
+  draftData?: any;
 }
 
 const STATUS_CONFIG = {
@@ -382,7 +384,7 @@ const TIMEFRAME_OPTIONS = [
   { value: '1W', label: '1 week' },
 ] as const;
 
-export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, primaryTimeframe, instruments }: BacktestPanelProps) {
+export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, primaryTimeframe, instruments, draftData }: BacktestPanelProps) {
   const [symbol, setSymbol] = useState(defaultSymbol ?? '');
   const [startDate, setStartDate] = useState('');
   const [backtestMode, setBacktestMode] = useState<BacktestMode>('simple');
@@ -394,8 +396,8 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
   const [monkeyMode, setMonkeyMode] = useState<string>('A');
   const [nSimulations, setNSimulations] = useState<number>(1000);
   const [stressTestName, setStressTestName] = useState<string>('');
-  const [stressParamOverrides, setStressParamOverrides] = useState<string>('{}');
-  const [stressSingleOverrides, setStressSingleOverrides] = useState<string>('{}');
+  const [stressParamOverrides, setStressParamOverrides] = useState<Record<string, any>>({});
+  const [stressSingleOverrides, setStressSingleOverrides] = useState<Record<string, any>>({});
   const [stressMaxParallel, setStressMaxParallel] = useState<number>(4);
   const [selectedReportJobId, setSelectedReportJobId] = useState<number | null>(null);
   const queryClient = useQueryClient();
@@ -478,24 +480,6 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
       return;
     }
 
-    // Validate stress JSON before submitting
-    let parsedParamOverrides: Record<string, any> | undefined;
-    let parsedSingleOverrides: Record<string, any> | undefined;
-    if (backtestMode === 'stress') {
-      try {
-        parsedParamOverrides = JSON.parse(stressParamOverrides);
-      } catch {
-        setFormError('Invalid JSON in Parameter Overrides');
-        return;
-      }
-      try {
-        parsedSingleOverrides = JSON.parse(stressSingleOverrides);
-      } catch {
-        setFormError('Invalid JSON in Single Overrides');
-        return;
-      }
-    }
-
     createMutation.mutate({
       draft_strat_code: stratCode,
       symbol: symbol.trim(),
@@ -507,8 +491,8 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
       ...(backtestMode === 'monkey' && { n_simulations: nSimulations, monkey_mode: monkeyMode }),
       ...(backtestMode === 'stress' && {
         stress_test_name: stressTestName || undefined,
-        stress_param_overrides: parsedParamOverrides,
-        stress_single_overrides: parsedSingleOverrides,
+        stress_param_overrides: Object.keys(stressParamOverrides).length > 0 ? stressParamOverrides : undefined,
+        stress_single_overrides: Object.keys(stressSingleOverrides).length > 0 ? stressSingleOverrides : undefined,
         stress_max_parallel: stressMaxParallel,
       }),
     });
@@ -723,24 +707,11 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
                 </select>
               </div>
             </div>
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Parameter Overrides (JSON)</label>
-              <textarea
-                value={stressParamOverrides}
-                onChange={(e) => setStressParamOverrides(e.target.value)}
-                className="w-full text-xs bg-surface-2 text-text-primary border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent font-mono h-20 resize-y"
-                placeholder='{"ind_list.1 day.0.period": {"min": 5, "max": 30, "step": 5}}'
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Single Overrides (JSON)</label>
-              <textarea
-                value={stressSingleOverrides}
-                onChange={(e) => setStressSingleOverrides(e.target.value)}
-                className="w-full text-xs bg-surface-2 text-text-primary border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent font-mono h-20 resize-y"
-                placeholder='{}'
-              />
-            </div>
+            <StressParamBuilder
+              draftData={draftData}
+              onParamOverridesChange={setStressParamOverrides}
+              onSingleOverridesChange={setStressSingleOverrides}
+            />
           </div>
         )}
 
