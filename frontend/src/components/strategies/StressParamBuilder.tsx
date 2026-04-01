@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Activity, Timer, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Activity, Timer, AlertTriangle, Crosshair, Shield } from 'lucide-react';
 
 interface ParamConfig {
   key: string;        // e.g. "ind_list.1 day.0.period"
   label: string;      // e.g. "RSI_1D — period"
-  category: 'indicator' | 'exit';
+  category: 'indicator' | 'condition' | 'exit' | 'risk';
   currentValue: number;
 }
 
@@ -64,6 +64,50 @@ function extractParams(draftData: any): ParamConfig[] {
     }
   }
 
+  // Extract entry condition thresholds from long_conds and short_conds
+  const condSections: Array<{ key: string; conds: any[] }> = [];
+  if (Array.isArray(draftData.long_conds)) {
+    condSections.push({ key: 'long_conds', conds: draftData.long_conds });
+  }
+  if (Array.isArray(draftData.short_conds)) {
+    condSections.push({ key: 'short_conds', conds: draftData.short_conds });
+  }
+  for (const section of condSections) {
+    section.conds.forEach((cond: any, idx: number) => {
+      if (cond.cond_type === 'num_relation' && typeof cond.cond === 'string') {
+        const match = cond.cond.match(/[<>=!]+\s*(-?\d+\.?\d*)/);
+        if (match) {
+          const threshold = parseFloat(match[1]);
+          const condCode = cond.condCode || `${section.key}_${idx}`;
+          params.push({
+            key: `${section.key}.${idx}.cond_value`,
+            label: `${condCode} — ${cond.cond}`,
+            category: 'condition',
+            currentValue: threshold,
+          });
+        }
+      }
+    });
+  }
+
+  // Extract exit bars from exit_conds
+  if (Array.isArray(draftData.exit_conds)) {
+    draftData.exit_conds.forEach((cond: any, idx: number) => {
+      if (cond.cond_type === 'num_bars') {
+        const value = parseFloat(cond.cond);
+        if (!isNaN(value)) {
+          const condCode = cond.condCode || `exit_${idx}`;
+          params.push({
+            key: `exit_conds.${idx}.cond`,
+            label: `${condCode} — max bars`,
+            category: 'exit',
+            currentValue: value,
+          });
+        }
+      }
+    });
+  }
+
   // Extract max_bars_in_trade from control_params
   const maxBars = draftData.control_params?.max_bars_in_trade;
   if (maxBars != null && typeof maxBars === 'number') {
@@ -73,6 +117,54 @@ function extractParams(draftData: any): ParamConfig[] {
       category: 'exit',
       currentValue: maxBars,
     });
+  }
+
+  // Extract SL/TP parameters
+  const sltp: Array<{ prefix: string; label: string; data: any }> = [
+    { prefix: 'stop_loss_init', label: 'SL', data: draftData.stop_loss_init },
+    { prefix: 'take_profit_init', label: 'TP', data: draftData.take_profit_init },
+  ];
+  for (const { prefix, label, data } of sltp) {
+    if (!data || typeof data !== 'object') continue;
+    const types = ['pips', 'percent', 'indicator'] as const;
+    for (const type of types) {
+      if (data[type] === true) {
+        const paramsObj = data[`${type}_params`];
+        if (paramsObj && typeof paramsObj === 'object') {
+          for (const [key, value] of Object.entries(paramsObj)) {
+            if (typeof value === 'number') {
+              params.push({
+                key: `${prefix}.${type}_params.${key}`,
+                label: `${label} ${type} — ${key}`,
+                category: 'risk',
+                currentValue: value,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Extract trailing/breakeven ratios from stop_loss_mgmt
+  const mgmt = draftData.stop_loss_mgmt;
+  if (mgmt && typeof mgmt === 'object') {
+    if (mgmt.trailing?.action === true && typeof mgmt.trailing.trailingRatio === 'number') {
+      params.push({
+        key: 'stop_loss_mgmt.trailing.trailingRatio',
+        label: 'Trailing Ratio',
+        category: 'risk',
+        currentValue: mgmt.trailing.trailingRatio,
+      });
+    }
+    if (mgmt.breakeven?.action === true && typeof mgmt.breakeven.profitRatio === 'number') {
+      params.push({
+        key: 'stop_loss_mgmt.breakeven.profitRatio',
+        label: 'Breakeven Profit Ratio',
+        category: 'risk',
+        currentValue: mgmt.breakeven.profitRatio,
+      });
+    }
   }
 
   return params;
@@ -186,7 +278,9 @@ export default function StressParamBuilder({
 
   const [states, setStates] = useState<Record<string, ParamState>>({});
   const [indicatorsOpen, setIndicatorsOpen] = useState(true);
+  const [conditionsOpen, setConditionsOpen] = useState(true);
   const [exitOpen, setExitOpen] = useState(true);
+  const [riskOpen, setRiskOpen] = useState(true);
 
   // Initialize states when params change
   useEffect(() => {
@@ -230,7 +324,9 @@ export default function StressParamBuilder({
   };
 
   const indicatorParams = params.filter((p) => p.category === 'indicator');
+  const conditionParams = params.filter((p) => p.category === 'condition');
   const exitParams = params.filter((p) => p.category === 'exit');
+  const riskParams = params.filter((p) => p.category === 'risk');
   const totalVariations = countVariations(states);
 
   if (params.length === 0) {
@@ -271,6 +367,34 @@ export default function StressParamBuilder({
         </div>
       )}
 
+      {/* Conditions section */}
+      {conditionParams.length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <button
+            onClick={() => setConditionsOpen(!conditionsOpen)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface-2/50 hover:bg-surface-2/80 transition-colors"
+          >
+            <Crosshair size={12} className="text-text-muted" />
+            <span className="text-xs font-medium text-text-secondary">Conditions</span>
+            <span className="text-[10px] text-text-muted">({conditionParams.length})</span>
+            <span className="flex-1" />
+            {conditionsOpen ? <ChevronUp size={12} className="text-text-muted" /> : <ChevronDown size={12} className="text-text-muted" />}
+          </button>
+          {conditionsOpen && (
+            <div className="px-3 py-1.5">
+              {conditionParams.map((p) => (
+                <ParamRow
+                  key={p.key}
+                  param={p}
+                  state={states[p.key] ?? { enabled: false, mode: 'grid', range: smartDefaults(p.currentValue) }}
+                  onChange={(update) => updateParam(p.key, update)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Exit section */}
       {exitParams.length > 0 && (
         <div className="border border-border rounded-lg overflow-hidden">
@@ -286,6 +410,34 @@ export default function StressParamBuilder({
           {exitOpen && (
             <div className="px-3 py-1.5">
               {exitParams.map((p) => (
+                <ParamRow
+                  key={p.key}
+                  param={p}
+                  state={states[p.key] ?? { enabled: false, mode: 'grid', range: smartDefaults(p.currentValue) }}
+                  onChange={(update) => updateParam(p.key, update)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Risk Management section */}
+      {riskParams.length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <button
+            onClick={() => setRiskOpen(!riskOpen)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface-2/50 hover:bg-surface-2/80 transition-colors"
+          >
+            <Shield size={12} className="text-text-muted" />
+            <span className="text-xs font-medium text-text-secondary">Risk Management</span>
+            <span className="text-[10px] text-text-muted">({riskParams.length})</span>
+            <span className="flex-1" />
+            {riskOpen ? <ChevronUp size={12} className="text-text-muted" /> : <ChevronDown size={12} className="text-text-muted" />}
+          </button>
+          {riskOpen && (
+            <div className="px-3 py-1.5">
+              {riskParams.map((p) => (
                 <ParamRow
                   key={p.key}
                   param={p}
