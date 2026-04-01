@@ -1,6 +1,6 @@
 # Backtesting System Documentation
 
-Complete reference for the IRT backtesting system. This document covers the four test modes -- Simple Backtest, Complete Backtest, Monte Carlo Simulation, and Monkey Test -- from API request through engine execution to frontend visualization.
+Complete reference for the IRT backtesting system. This document covers the five test modes -- Simple Backtest, Complete Backtest, Monte Carlo Simulation, Monkey Test, and Stress Test (Parameter Sensitivity) -- from API request through engine execution to frontend visualization.
 
 ---
 
@@ -12,9 +12,10 @@ Complete reference for the IRT backtesting system. This document covers the four
 4. [Complete Backtest](#4-complete-backtest)
 5. [Monte Carlo Simulation](#5-monte-carlo-simulation)
 6. [Monkey Test](#6-monkey-test)
-7. [Data Flow Diagrams](#7-data-flow-diagrams)
-8. [API Endpoints](#8-api-endpoints)
-9. [Configuration](#9-configuration)
+7. [Stress Test (Parameter Sensitivity)](#7-stress-test-parameter-sensitivity)
+8. [Data Flow Diagrams](#8-data-flow-diagrams)
+9. [API Endpoints](#9-api-endpoints)
+10. [Configuration](#10-configuration)
 
 ---
 
@@ -22,7 +23,7 @@ Complete reference for the IRT backtesting system. This document covers the four
 
 ### What is the Backtesting System
 
-The IRT backtesting system evaluates trading strategy drafts against historical market data. It takes a validated strategy draft (with zero pending TODOs), runs it through a high-performance bar-by-bar backtest engine, and produces detailed performance metrics. Four test modes provide increasing levels of statistical rigor:
+The IRT backtesting system evaluates trading strategy drafts against historical market data. It takes a validated strategy draft (with zero pending TODOs), runs it through a high-performance bar-by-bar backtest engine, and produces detailed performance metrics. Five test modes provide increasing levels of statistical rigor:
 
 - **Simple Backtest** -- Quick, single-timeframe performance check. Runs the strategy on one timeframe and returns metrics only (no trade-level data persisted). Best for rapid iteration during strategy development.
 
@@ -31,6 +32,8 @@ The IRT backtesting system evaluates trading strategy drafts against historical 
 - **Monte Carlo Simulation** -- Statistical stress test. Fits a GJR-GARCH model on historical data, generates thousands of synthetic OHLC price paths, runs the strategy on each, and produces distributional statistics. Best for answering "would this strategy survive under different market conditions?"
 
 - **Monkey Test** -- Statistical edge validation. Generates thousands of random-entry simulations on the real OHLC data and compares the strategy's performance against the random distribution. Best for answering "does my strategy have a real edge, or could a monkey picking random entries do just as well?"
+
+- **Stress Test (Parameter Sensitivity)** -- Systematic parameter sweep. Generates a grid of parameter variations (indicator periods, condition thresholds, exit bars), runs full backtests for each, and produces robustness metrics. Best for answering "is this strategy robust to parameter changes, or does it only work with one specific set of values?"
 
 ### Architecture
 
@@ -53,18 +56,18 @@ If either condition fails, the API returns HTTP 422.
 
 ## 2. Comparison Table
 
-| Aspect                  | Simple Backtest          | Complete Backtest         | Monte Carlo Simulation        | Monkey Test                          |
-|-------------------------|--------------------------|---------------------------|-------------------------------|--------------------------------------|
-| **Mode identifier**     | `simple`                 | `complete`                | `montecarlo`                  | `monkey`                             |
-| **What it tests**       | Strategy on 1 timeframe  | Strategy on 1 timeframe   | Strategy on N synthetic paths | Strategy vs N random-entry simulations |
-| **Timeframe remapping** | No                       | Yes                       | Yes                           | Yes                                  |
-| **Engine flags**        | `--metrics-json`         | `--save --metrics-json`   | MC runner CLI                 | Monkey runner CLI                    |
-| **Trade-level output**  | No (metrics only)        | Yes (trades.parquet)      | No                            | No (distributions)                   |
-| **Output format**       | Single metrics dict      | Metrics + trades list     | Distributional statistics     | p-value + distribution + percentile  |
-| **Typical duration**    | 5-30 seconds             | 10-60 seconds             | 5-60 minutes                  | 30s-5 minutes                        |
-| **Subprocess timeout**  | 300s (job_timeout)       | 300s (job_timeout)        | 7200s (2 hours)               | 3600s (1 hour)                       |
-| **Frontend view**       | Metrics grid + equity    | Metrics + equity + trades | Scorecard + histograms + risk | p-value badge + histogram + comparison table |
-| **Use case**            | Quick iteration          | Final evaluation          | Statistical robustness check  | Edge validation                      |
+| Aspect                  | Simple Backtest          | Complete Backtest         | Monte Carlo Simulation        | Monkey Test                          | Stress Test                              |
+|-------------------------|--------------------------|---------------------------|-------------------------------|--------------------------------------|------------------------------------------|
+| **Mode identifier**     | `simple`                 | `complete`                | `montecarlo`                  | `monkey`                             | `stress`                                 |
+| **What it tests**       | Strategy on 1 timeframe  | Strategy on 1 timeframe   | Strategy on N synthetic paths | Strategy vs N random-entry simulations | Strategy across N parameter variations   |
+| **Timeframe remapping** | No                       | Yes                       | Yes                           | Yes                                  | Yes                                      |
+| **Engine flags**        | `--metrics-json`         | `--save --metrics-json`   | MC runner CLI                 | Monkey runner CLI                    | Stress runner CLI (subprocess per variation) |
+| **Trade-level output**  | No (metrics only)        | Yes (trades.parquet)      | No                            | No (distributions)                   | No (aggregate metrics per variation)     |
+| **Output format**       | Single metrics dict      | Metrics + trades list     | Distributional statistics     | p-value + distribution + percentile  | Robustness score + per-variation metrics |
+| **Typical duration**    | 5-30 seconds             | 10-60 seconds             | 5-60 minutes                  | 30s-5 minutes                        | 1-30 minutes (depends on grid size)      |
+| **Subprocess timeout**  | 300s (job_timeout)       | 300s (job_timeout)        | 7200s (2 hours)               | 3600s (1 hour)                       | 7200s (2 hours)                          |
+| **Frontend view**       | Metrics grid + equity    | Metrics + equity + trades | Scorecard + histograms + risk | p-value badge + histogram + comparison table | Robustness verdict + heatmap + sensitivity charts + results table |
+| **Use case**            | Quick iteration          | Final evaluation          | Statistical robustness check  | Edge validation                      | Parameter robustness validation          |
 
 ---
 
@@ -925,9 +928,221 @@ The Monkey Test report (`MonkeyTestReport.tsx`) renders inside `BacktestReportDr
 
 ---
 
-## 7. Data Flow Diagrams
+## 7. Stress Test (Parameter Sensitivity)
 
-### 7.1 Simple Backtest
+### 7.1 What It Does
+
+The Stress Test answers: **"Is my strategy robust to parameter changes, or does it only work with one specific set of values?"**
+
+Instead of testing on different data (like Monte Carlo) or different entries (like Monkey Test), the Stress Test keeps the same data and signals but systematically varies strategy parameters. It builds a grid of parameter combinations, runs a full backtest for each, and aggregates the results into robustness metrics.
+
+Parameter sensitivity analysis is a standard practice in quantitative finance. A strategy that only works with one narrow parameter set is likely overfit. Robust strategies maintain profitability across a range of reasonable parameter values.
+
+Two sweep modes are available:
+
+- **Multi-param grid (cartesian product)** -- All combinations of selected parameter ranges are tested. For 2 parameters with 5 values each, this produces 25 variations.
+- **Single-param sweep (one-at-a-time)** -- Each parameter is varied independently while others stay at defaults. Useful for isolating individual parameter sensitivity.
+
+### 7.2 Parameters
+
+| Parameter                 | Type     | Default    | Description                                          |
+|---------------------------|----------|------------|------------------------------------------------------|
+| `draft_strat_code`        | `int`    | required   | The draft strategy code                              |
+| `symbol`                  | `string` | required   | Trading instrument                                   |
+| `timeframe`               | `string` | `"1h"`     | Target timeframe for remapping                       |
+| `start_date`              | `string` | required   | Start date in `YYYY-MM-DD` format                    |
+| `end_date`                | `string` | required   | End date in `YYYY-MM-DD` format                      |
+| `mode`                    | `string` | `"stress"` | Must be `"stress"`                                   |
+| `stress_test_name`        | `string` | `"unnamed"`| Name for the test run                                |
+| `stress_param_overrides`  | `dict`   | `{}`       | Multi-param grid specs (see 7.3)                     |
+| `stress_single_overrides` | `dict`   | `{}`       | Single-param sweep specs (see 7.3)                   |
+| `stress_max_parallel`     | `int`    | `4`        | Max concurrent variation backtests                   |
+
+### 7.3 Parameter Specification
+
+Parameters are identified by dot-path notation into the strategy JSON. The visual param builder (`StressParamBuilder`) automatically extracts tunable parameters from 4 categories:
+
+**Extractable parameter categories:**
+
+| Category        | JSON Location                                   | Example Path                                  | What it controls               |
+|-----------------|-------------------------------------------------|-----------------------------------------------|--------------------------------|
+| Indicators      | `ind_list.{tf}.{idx}.params.timePeriod_1`       | `ind_list.1 day.0.params.timePeriod_1`        | Indicator period (e.g., RSI 14)|
+| Conditions      | `long_conds.{idx}.cond` (num_relation type)     | `long_conds.2.cond_value`                     | Entry threshold (e.g., RSI < 70)|
+| Exit            | `exit_conds.{idx}.cond` (num_bars type)         | `exit_conds.0.cond`                           | Time exit bars                 |
+| Risk Management | `stop_loss_init.{type}_params.{key}`            | `stop_loss_init.pips_params.pip_value`        | SL/TP, trailing, breakeven     |
+
+**Range specification format:**
+
+```json
+{
+  "ind_list.1 day.0.params.timePeriod_1": {
+    "min": 5,
+    "max": 30,
+    "step": 5
+  }
+}
+```
+
+This generates values: [5, 10, 15, 20, 25, 30].
+
+Alternative list format:
+
+```json
+{
+  "ind_list.1 day.0.params.timePeriod_1": {
+    "type": "list",
+    "values": [7, 14, 21, 28]
+  }
+}
+```
+
+**Grid size calculation:**
+
+- Multi-param: cartesian product of all ranges. 3 params with 5, 4, 3 values = 60 variations.
+- Single-param: sum of all range sizes. 3 params with 5, 4, 3 values = 12 variations.
+- Warning thresholds: yellow > 100 variations, red > 500 variations.
+
+### 7.4 The Full Workflow Step-by-Step
+
+```
+Worker receives job -> export draft -> remap timeframe -> validate
+
+Stress Runner starts:
+  1. Load config JSON (param_overrides, single_overrides, dates)
+  2. Build work items:
+     a. Multi-param grid: cartesian product of all param_overrides ranges
+     b. Single-param sweeps: one-at-a-time for each single_overrides param
+  3. For each variation (parallel, up to max_parallel):
+     a. Write param overrides to temp JSON file
+     b. Subprocess: backtest engine with --param-overrides flag
+     c. Parse metrics from ###METRICS_JSON_START### markers
+     d. Record: {name, params, metrics, status}
+     e. Clean up temp file
+  4. Report progress: ###MC_PROGRESS###{"completed": N, "total": M}###MC_PROGRESS_END###
+  5. Aggregate results:
+     - Robustness scoring (profitable_pct, positive_sharpe_pct, low_drawdown_pct)
+     - Separate multi-grid and single-sweep results
+     - Compute per-group robustness
+  6. Output JSON via ###METRICS_JSON_START### marker
+```
+
+### 7.5 Parallel Execution
+
+Variations are executed using `ThreadPoolExecutor` with configurable parallelism (default: 4 workers).
+
+Each variation is a fully independent subprocess call to the backtest engine:
+
+```
+python main.py --mode single --strategy <id> --param-overrides <file.json> --start <date> --end <date> --hist-data-path <path> --strategies-path <path> --metrics-json
+```
+
+The `--param-overrides` flag passes a JSON file with the parameter modifications. The engine applies these overrides to the strategy before running.
+
+Failed variations (engine errors, timeouts) are recorded with `status: "error"` and excluded from statistics.
+
+### 7.6 Metrics and Robustness Scoring
+
+**Per-variation metrics (11 metrics):**
+
+| Metric            | Key                      | Format | Higher is better |
+|-------------------|--------------------------|--------|------------------|
+| Total PnL         | `total_pnl`              | $      | Yes              |
+| Win Rate          | `win_rate`               | %      | Yes              |
+| Profit Factor     | `profit_factor`          | ratio  | Yes              |
+| Sharpe Ratio      | `sharpe_ratio`           | ratio  | Yes              |
+| Sortino Ratio     | `sortino_ratio`          | ratio  | Yes              |
+| Max Drawdown      | `max_drawdown`           | $      | No               |
+| Max Drawdown %    | `max_drawdown_pct`       | %      | No               |
+| Return/DD         | `return_drawdown_ratio`  | ratio  | Yes              |
+| Total Trades      | `total_trades`           | count  | --               |
+| SQN               | `sqn`                    | ratio  | Yes              |
+| Annualized Return | `annualized_return_pct`  | %      | Yes              |
+
+**Robustness score (simple average):**
+
+| Component        | Formula                             | What it measures                        |
+|------------------|-------------------------------------|-----------------------------------------|
+| Profitable %     | `count(pnl > 0) / total * 100`     | % of variations with positive PnL       |
+| Positive Sharpe %| `count(sharpe > 0) / total * 100`   | % of variations with positive Sharpe    |
+| Low Drawdown %   | `count(abs(dd) < 50%) / total * 100`| % of variations with drawdown under 50% |
+| **Score**        | `(profitable + pos_sharpe + low_dd) / 3` | Composite robustness score (0-100) |
+
+**Robustness verdict (6 criteria):**
+
+| Criterion        | Threshold              | What it checks                               |
+|------------------|------------------------|----------------------------------------------|
+| Profitable       | >= 70% positive PnL    | Most parameter sets are profitable           |
+| Median Sharpe    | > 1.0                  | Typical risk-adjusted return is good         |
+| Sharpe Outliers  | >= 95% Sharpe >= 0     | Almost no parameter sets have negative Sharpe|
+| Max Drawdown     | All < 25%              | No parameter set produces excessive drawdown |
+| Avg Profit Factor| > 1.5                  | Average edge is meaningful                   |
+| PnL Stability    | stdev < 50% of mean    | Returns are consistent across parameter sets |
+
+Verdict scoring: >= 5 passed = green (robust), >= 3 = amber (moderate), < 3 = red (fragile).
+
+**Weighted score breakdown (advanced):**
+
+| Metric            | Weight | Range            |
+|-------------------|--------|------------------|
+| Sharpe Ratio      | 25%    | [-2.0, 3.0]      |
+| Profit Factor     | 25%    | [0.5, 3.0]       |
+| Win Rate          | 15%    | [0.0, 100.0]     |
+| Max Drawdown %    | 15%    | [0.0, 50.0] (inverted) |
+| Return/DD         | 10%    | [0.0, 5.0]       |
+| Sortino Ratio     | 10%    | [-2.0, 4.0]      |
+
+Each metric's median value is normalized to 0-100 within its range, multiplied by weight, and summed. A consistency bonus adds up to 15 points for low inter-variation variance.
+
+### 7.7 Interpreting Results
+
+**What a good stress test result looks like:**
+
+- Robustness score >= 70
+- 5-6 verdict criteria passed
+- Heatmap shows consistent green (no cliff edges or isolated profitable islands)
+- Single-param sensitivity curves are smooth (no sharp spikes or drops)
+- The optimal parameter region is broad, not a narrow peak
+
+**Red flags:**
+
+- Only 1-2 verdict criteria pass -- strategy is likely overfit to specific parameter values
+- Heatmap shows mostly red with small green islands -- performance depends critically on exact parameters
+- Sharp discontinuities in sensitivity curves -- strategy behavior is unstable
+- PnL stability fails (stdev > 50% of mean) -- results vary wildly across parameter sets
+
+**Practical rule:** A strategy should achieve a robustness score >= 60 and pass at least 4 of 6 verdict criteria before being considered for live deployment.
+
+### 7.8 Frontend Visualization
+
+The Stress Test report (`StressTestReport.tsx`) renders inside `BacktestReportDrawer` when mode is `stress`:
+
+- **Robustness Verdict** -- 6-criteria pass/fail checklist with check/X icons, actual values, and thresholds. Shows "X/6 criteria passed" with color coding (green >= 5, amber >= 3, red < 3).
+
+- **Robustness Score Badge** -- Large 0-100 score with color: green >= 80 ("Robust"), emerald 60-79 ("Moderate"), amber 40-59 ("Weak"), red < 40 ("Fragile"). Three sub-scores displayed inline: Profitable %, Positive Sharpe %, Low DD %.
+
+- **Score Breakdown** -- Expandable section showing weighted per-metric contributions (Sharpe, PF, Win Rate, Max DD, Return/DD, Sortino) with their weight percentages and contribution scores. Also shows consistency bonus and deviation impact bars per parameter.
+
+- **Sensitivity Heatmap** -- For 2+ param grids: CSS grid-based heatmap with X-axis/Y-axis/metric dropdown selectors. Color scale: red (bad) -> white (neutral) -> green (good), reversed for lower-is-better metrics. For 1 param: Recharts BarChart with color-coded bars.
+
+- **Parameter Sensitivity Charts** -- Recharts LineChart per single-param sweep showing metric value vs parameter value. Includes best/worst markers.
+
+- **Results Table** -- All variations sorted by selected metric (11 sortable metrics). Best values highlighted green, worst red. Params column shows short labels with base-param markers.
+
+- **Summary Card** -- Total variations, completed, failed, duration.
+
+**Parameter Builder** (`StressParamBuilder.tsx`) in BacktestPanel:
+
+- Parses draft JSON to extract 4 categories of tunable parameters (indicators, conditions, exit, risk management)
+- Collapsible sections per category with item count
+- Per-parameter: enable checkbox, Grid/Sweep toggle, min/max/step inputs
+- Auto-computed defaults: min = currentValue * 0.5, max = currentValue * 2, step = sensible (roughly 5-10 values in the range)
+- Variation count warning (yellow > 100, red > 500)
+
+---
+
+## 8. Data Flow Diagrams
+
+### 8.1 Simple Backtest
 
 ```
   User (Frontend)                  API                    Worker                  Engine
@@ -970,7 +1185,7 @@ The Monkey Test report (`MonkeyTestReport.tsx`) renders inside `BacktestReportDr
   Display metrics grid
 ```
 
-### 7.2 Complete Backtest
+### 8.2 Complete Backtest
 
 ```
   User (Frontend)                  API                    Worker                  Engine
@@ -1026,7 +1241,7 @@ The Monkey Test report (`MonkeyTestReport.tsx`) renders inside `BacktestReportDr
   + trades table
 ```
 
-### 7.3 Monte Carlo Simulation
+### 8.3 Monte Carlo Simulation
 
 ```
   User (Frontend)                  API                    Worker               MC Runner
@@ -1081,7 +1296,7 @@ The Monkey Test report (`MonkeyTestReport.tsx`) renders inside `BacktestReportDr
   - Confidence intervals
 ```
 
-### 7.4 Monkey Test
+### 8.4 Monkey Test
 
 ```
   User (Frontend)                  API                    Worker                  Monkey Runner
@@ -1127,13 +1342,66 @@ The Monkey Test report (`MonkeyTestReport.tsx`) renders inside `BacktestReportDr
   + histogram + summary
 ```
 
+### 8.5 Stress Test
+
+```
+  User (Frontend)                  API                    Worker                  Stress Runner
+  ===============                  ===                    ======                  =============
+
+  POST /api/backtests              Create job
+  { mode: "stress",  ---------->  (status: pending)
+    strat_code, symbol,            Store in DB
+    timeframe, dates,                  |
+    stress_test_name,                  |
+    stress_param_overrides,            |
+    stress_single_overrides,           |
+    stress_max_parallel }              |
+                              Worker polls /pending
+                                       |
+                                  Claim job  <------  GET /pending
+                                (status: running)     PATCH /{id}/claim
+                                       |
+                                       v
+                                  export_draft()
+                                  remap_timeframe()
+                                  validate_remapped_json()
+                                       |
+                                       v
+                                  Write config JSON
+                                  subprocess.run()  -------->  1. Load config
+                                  stress_engine.py             2. Build work items:
+                                       |                          - Multi grid (product)
+                                       |                          - Single sweeps
+                                       |                       3. ThreadPoolExecutor:
+                                       |                          For each variation:
+                                       |                          - Write overrides JSON
+                                       |                          - Subprocess: engine
+                                       |                          - Parse metrics
+                                       |                       4. Aggregate results
+                                       |                       5. Robustness scoring
+                                  Parse stdout  <-----------  ###METRICS_JSON###
+                                  markers                     { stress results }
+                                       |
+                                       v
+                                  POST /{id}/results
+                                  { metrics: { summary,
+                                    robustness, variations },
+                                    trades: [] }
+                                       |
+                                  (status: completed)
+                                       |
+  GET /api/backtests/{id}  <----  Return job + result
+  Display verdict + heatmap
+  + sensitivity + table
+```
+
 ---
 
-## 8. API Endpoints
+## 9. API Endpoints
 
 All endpoints are under the `/api/backtests` prefix and require API key authentication via the `X-API-Key` header.
 
-### 8.1 User-Facing Endpoints
+### 9.1 User-Facing Endpoints
 
 #### Create Backtest Job
 
@@ -1155,6 +1423,10 @@ POST /api/backtests
   "fit_years": null,
   "n_simulations": null,
   "monkey_mode": null,
+  "stress_test_name": null,
+  "stress_param_overrides": null,
+  "stress_single_overrides": null,
+  "stress_max_parallel": null,
   "debug": false
 }
 ```
@@ -1197,7 +1469,7 @@ DELETE /api/backtests/{job_id}
 **Constraints:**
 - Cannot delete a `running` job (409 Conflict)
 
-### 8.2 Worker-Internal Endpoints
+### 9.2 Worker-Internal Endpoints
 
 These endpoints are used by the worker process to manage job lifecycle. They share the same API key authentication.
 
@@ -1252,40 +1524,44 @@ PATCH /api/backtests/{job_id}/fail
 
 Transitions a `running` job to `failed`, stores truncated error message (max 2000 chars).
 
-### 8.3 Response Schema
+### 9.3 Response Schema
 
 ```
 BacktestJobResponse:
-  id:                int
-  draft_strat_code:  int
-  symbol:            string
-  timeframe:         string
-  start_date:        string
-  end_date:          string
-  status:            "pending" | "running" | "completed" | "failed"
-  mode:              "simple" | "complete" | "montecarlo" | "monkey"
-  n_paths:           int | null
-  fit_years:         int | null
-  n_simulations:     int | null
-  monkey_mode:       string | null
-  error_message:     string | null
-  created_at:        datetime
-  started_at:        datetime | null
-  completed_at:      datetime | null
-  result:            BacktestResultResponse | null
+  id:                      int
+  draft_strat_code:        int
+  symbol:                  string
+  timeframe:               string
+  start_date:              string
+  end_date:                string
+  status:                  "pending" | "running" | "completed" | "failed"
+  mode:                    "simple" | "complete" | "montecarlo" | "monkey" | "stress"
+  n_paths:                 int | null
+  fit_years:               int | null
+  n_simulations:           int | null
+  monkey_mode:             string | null
+  stress_test_name:        string | null
+  stress_param_overrides:  dict | null
+  stress_single_overrides: dict | null
+  stress_max_parallel:     int | null
+  error_message:           string | null
+  created_at:              datetime
+  started_at:              datetime | null
+  completed_at:            datetime | null
+  result:                  BacktestResultResponse | null
 
 BacktestResultResponse:
   id:         int
   metrics:    dict    (structure depends on mode)
-  trades:     list    (empty for simple/montecarlo/monkey, populated for complete)
+  trades:     list    (empty for simple/montecarlo/monkey/stress, populated for complete)
   created_at: datetime
 ```
 
 ---
 
-## 9. Configuration
+## 10. Configuration
 
-### 9.1 Worker Configuration
+### 10.1 Worker Configuration
 
 Worker configuration is loaded from environment variables (or `.env` file in the `worker/` directory):
 
@@ -1301,7 +1577,7 @@ Worker configuration is loaded from environment variables (or `.env` file in the
 | `MC_RUNNER_PATH`        | `packages/montecarlo/runner/main_mc.py`  | Path to Monte Carlo runner entry point   |
 | `WORKER_DEBUG`          | `false`                                  | Enable debug JSON saving globally        |
 
-### 9.2 Monte Carlo Configuration
+### 10.2 Monte Carlo Configuration
 
 Monte Carlo constants are centralized in `packages/montecarlo/config.py` (`MonteCarloConfig` class):
 
@@ -1361,7 +1637,7 @@ Monte Carlo constants are centralized in `packages/montecarlo/config.py` (`Monte
 | `MAX_FAILURE_RATE`           | 0.20    | Warn if > 20% of paths fail                  |
 | `MIN_SUCCESSFUL_PATHS_RATIO` | 0.50    | Minimum ratio of successful paths required   |
 
-### 9.3 Monkey Test Configuration
+### 10.3 Monkey Test Configuration
 
 | Constant                | Default | Description                              |
 |-------------------------|---------|------------------------------------------|
@@ -1371,7 +1647,17 @@ Monte Carlo constants are centralized in `packages/montecarlo/config.py` (`Monte
 | `PROGRESS_EVERY`        | 100     | Report progress every N simulations      |
 | `HISTOGRAM_BINS`        | 30      | Number of bins for distribution histogram|
 
-### 9.4 Backtest Engine Constants
+### 10.4 Stress Test Configuration
+
+| Constant                  | Default | Description                              |
+|---------------------------|---------|------------------------------------------|
+| `DEFAULT_MAX_PARALLEL`    | 4       | Max concurrent variation backtests       |
+| `TIMEOUT_PER_VARIATION`   | 300     | Seconds timeout per individual variation |
+| `STRESS_TIMEOUT`          | 7200    | Total subprocess timeout (seconds)       |
+| `VARIATION_WARN_YELLOW`   | 100     | Grid size warning threshold (yellow)     |
+| `VARIATION_WARN_RED`      | 500     | Grid size warning threshold (red)        |
+
+### 10.5 Backtest Engine Constants
 
 Exit reason constants defined in `_00_constants.py`:
 
@@ -1386,7 +1672,7 @@ Exit reason constants defined in `_00_constants.py`:
 | `ExitReason.BACKTEST_END`| `"backtest_end"` | Forced close at period end |
 | `ExitReason.MARGIN_CALL`| `"margin_call"` | Insufficient margin         |
 
-### 9.5 Position Sizing Modes
+### 10.6 Position Sizing Modes
 
 The backtest engine supports three position sizing modes, configured via the strategy draft:
 
@@ -1398,7 +1684,7 @@ The backtest engine supports three position sizing modes, configured via the str
 
 All modes respect the optional `max_volume` cap. Modes `rpo` and `half_kelly` require `initial_equity` to be set.
 
-### 9.6 Supported Timeframes
+### 10.7 Supported Timeframes
 
 The engine supports the following timeframes for resampling from 1-minute data:
 
