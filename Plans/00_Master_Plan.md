@@ -3,7 +3,7 @@
 **Project:** IRT (Ideas Research Team)
 **Created:** 2026-03-22
 **Last Updated:** 2026-03-31
-**Current Phase:** Phase 13 — Metrics & Analysis
+**Current Phase:** Phase 13 — One-Click Full Backtest Pipeline
 **Status:** Idle
 
 ---
@@ -32,7 +32,7 @@
 | 12.1 | Worker Unification | Copy backtest-engine + ibkr-core from Ops Platform into IRT/packages/, create project venv, update worker to use local engine. Make IRT fully self-contained with zero Ops Platform dependency | HIGH | Phase 11 | /sdd-new | Done |
 | 12.4 | Monkey Test | Statistical robustness test: random entries on real OHLC to validate strategy edge via p-value | HIGH | Phase 12.3 | /sdd-new | design | Done |
 | 12.5 | Stress Test (Parameter Sensitivity) | Sweep strategy parameters to test robustness — adapted from Ops Platform | HIGH | Phase 12.4 | /sdd-new | planning | Done |
-| 13 | Metrics & Analysis | Compute and compare metrics from real and synthetic backtests | HIGH | Phase 12.3 | /sdd-ff | Planned |
+| 13 | One-Click Full Backtest Pipeline | Single button launches Backtest → MC + Monkey + Stress in parallel, unified results view | HIGH | Phase 12.3 | /sdd-ff | Planned |
 | 14 | Worker Dockerization | Containerize the backtest worker for VPS deployment. Dockerfile with Python 3.12, pandas, pyarrow. Mount historical data and engine as volumes. Add worker service to docker-compose. | MEDIUM | Phase 11 | /sdd-new | Planned |
 
 ---

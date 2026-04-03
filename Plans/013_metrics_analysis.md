@@ -1,32 +1,79 @@
-# Metrics & Analysis — Phase 12
+# One-Click Full Backtest Pipeline — Phase 13
 
 **Status:** Planned
 **Started:** —
-**SDD Change:** backtest-metrics-analysis
-**Parent Phase:** Phase 12 from Master Plan
+**SDD Change:** backtest-pipeline
+**Parent Phase:** Phase 13 from Master Plan
 
 ---
 
 ## Goal
 
-Define, compute, and display performance metrics from both real and synthetic backtests. This phase transforms raw trade data into actionable insights: P&L curves, risk metrics, and statistical comparisons between real and Monte Carlo results. The goal is to answer "is this strategy worth trading?" with quantitative evidence.
+A single "Pipeline" mode tab in BacktestPanel that launches a complete analysis chain in one click: Backtest → (Monte Carlo + Monkey Test + Stress Test) in parallel. No new tables — uses a `pipeline_group` UUID on existing `backtest_jobs` to link the 4 jobs. API orchestrates child job creation when the initial backtest completes. Results shown in a dedicated Pipeline Report drawer.
+
+## Architecture
+
+```
+Frontend (Pipeline tab)
+    |
+    POST /api/backtests  (mode="complete", pipeline_group=UUID, pipeline_config={mc,monkey,stress params})
+    |
+    v
+API creates 1 backtest job with pipeline_group + stores pipeline_config
+    |
+    Worker picks up job, runs backtest
+    |
+    POST /api/backtests/{id}/results
+    |
+    v
+API service detects pipeline_group → auto-creates 3 jobs:
+    - mode="montecarlo"  (same pipeline_group, params from pipeline_config)
+    - mode="monkey"      (same pipeline_group, params from pipeline_config)
+    - mode="stress"      (same pipeline_group, params from pipeline_config)
+    |
+    Worker picks up 3 jobs in parallel (existing fair-sharing)
+    |
+    When all 3 report results → pipeline_group is "completed"
+    If any fails → pipeline_group is "failed"
+```
 
 ## Sub-phases
 
 | # | Task | Route | SDD Status | Status |
 |---|------|-------|------------|--------|
-| 1 | Metrics computation engine (P&L, win rate, max drawdown, Sharpe, profit factor, etc.) | /sdd-ff | — | Planned |
-| 2 | Metrics data model and storage (per-backtest and aggregate metrics tables) | /sdd-new | — | Planned |
-| 3 | Real vs synthetic comparison logic (statistical tests, confidence intervals) | /sdd-ff | — | Planned |
-| 4 | API endpoints for metrics (per-strategy, per-backtest, comparison views) | /sdd-new | — | Planned |
-| 5 | Frontend metrics dashboard (charts, tables, real vs synthetic overlay) | /sdd-ff | — | Planned |
-| 6 | Strategy scoring/ranking (composite score from metrics for quick comparison) | /sdd-new | — | Planned |
+| 1 | Data model: add `pipeline_group` (UUID) and `pipeline_config` (JSONB) columns to `backtest_jobs` + Alembic migration | quick fix | — | Planned |
+| 2 | API: pipeline orchestration in backtest service — on results submission, detect `pipeline_group` + `pipeline_config` and auto-create 3 child jobs | /sdd-new | — | Planned |
+| 3 | API: convenience endpoint `GET /api/backtests/pipeline/{group_id}` returning all 4 jobs | quick fix | — | Planned |
+| 4 | API: pipeline status derivation — all completed → completed, any failed → failed, else running | quick fix | — | Planned |
+| 5 | Frontend: "Pipeline" mode tab (6th button) with unified form — shared params + collapsible MC/Monkey/Stress param sections | /sdd-new | — | Planned |
+| 6 | Frontend: pipeline status row in job history — compact inline `Pipeline: Backtest ✓ · MC ⟳ · Monkey ✓ · Stress ⟳` grouped by `pipeline_group` | /sdd-new | — | Planned |
+| 7 | Frontend: Pipeline Report drawer — scrollable single view with summary + sections reusing existing MC/Monkey/Stress result components | /sdd-new | — | Planned |
 
-## Decisions Log
+## Design Decisions
 
 | Date | Decision | Why | Impact |
 |------|----------|-----|--------|
-| — | — | — | — |
+| 2026-04-03 | No new table — `pipeline_group` UUID on `backtest_jobs` | Keep it lean, reuse existing infrastructure | No schema complexity, pipeline status derived from child jobs |
+| 2026-04-03 | API-side orchestration (not worker) | Keep worker dumb, centralize logic in service layer | Worker stays generic, pipeline logic in one place |
+| 2026-04-03 | Fail entire pipeline if any step fails | Individual tests already validated separately | Simpler error model, no partial success handling |
+| 2026-04-03 | Pipeline tab as 6th mode (option A) | Single form collects all params at once | One-click UX, no multi-step wizard or pre-config needed |
+| 2026-04-03 | Compact inline status (option C) | Fits existing layout without new component | Minimal UI disruption |
+| 2026-04-03 | Dedicated Pipeline Report drawer (option B) | All 4 results in one scrollable view | Better overview than clicking 4 individual reports |
+
+## Error Handling
+
+- Initial backtest fails → pipeline fails, no child jobs created
+- Any of the 3 parallel jobs fail → entire pipeline marked as failed
+- User sees which step failed in the status row
+- No auto-retry — user investigates and re-runs the whole pipeline
+
+## What We're NOT Building
+
+- No new database table
+- No pipeline queue or scheduler — reuses existing worker polling
+- No partial success handling
+- No retry mechanism
+- No pipeline history/comparison view (future phase if needed)
 
 ## SDD Progress
 
@@ -34,16 +81,8 @@ _No SDD phases started yet._
 
 ## Notes
 
-- Core metrics to implement:
-  - **P&L** (total, per-trade, cumulative curve)
-  - **Win rate** (% of profitable trades)
-  - **Max drawdown** (largest peak-to-trough decline)
-  - **Sharpe ratio** (risk-adjusted return)
-  - **Profit factor** (gross profit / gross loss)
-  - **Sortino ratio** (downside-risk-adjusted return)
-  - **Average trade duration**
-  - **Expectancy** (average profit per trade)
-- Real vs synthetic comparison should highlight overfitting: if a strategy works on historical but fails on Monte Carlo, it's likely curve-fitted
-- Consider percentile-based reporting for Monte Carlo results (e.g., median Sharpe across N simulations, 5th percentile drawdown)
-- Charts: equity curve, drawdown chart, trade distribution histogram, MC fan chart
-- Strategy ranking enables quick prioritization of which strategies to investigate further
+- Pipeline config stored as JSONB on the first (complete backtest) job only
+- Child jobs inherit symbol, timeframe, dates from parent
+- Pipeline status is derived by querying all jobs with same pipeline_group
+- Existing fair-sharing in worker handles parallel execution of the 3 child jobs
+- Frontend groups pipeline jobs by pipeline_group UUID for display
