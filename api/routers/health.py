@@ -18,6 +18,8 @@ _EXPECTED_TABLES = [
     "research_history",
     "research_sessions",
     "instruments",
+    "backtest_jobs",
+    "backtest_results",
 ]
 
 

@@ -91,12 +91,12 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
   const trades = metrics.total_trades ?? metrics.trade_count ?? 0;
 
   // Return / Drawdown ratio card
-  const returnPct = metrics.return_pct as number | undefined;
-  const maxDdPct = metrics.max_drawdown_pct as number | undefined;
+  const returnPct = typeof metrics.return_pct === 'number' ? metrics.return_pct : undefined;
+  const maxDdPct = typeof metrics.max_drawdown_pct === 'number' ? metrics.max_drawdown_pct : undefined;
   let ratioValue: string;
   let ratioColor: string;
   if (returnPct != null && maxDdPct != null && maxDdPct !== 0) {
-    const ratio = returnPct / maxDdPct;
+    const ratio = Math.abs(returnPct) / Math.abs(maxDdPct);
     ratioValue = ratio.toFixed(2);
     ratioColor = ratio > 1 ? 'text-accent' : 'text-danger';
   } else if (metrics.total_pnl != null && metrics.max_drawdown != null && metrics.max_drawdown !== 0) {
@@ -114,8 +114,8 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
     ddPctValue = formatPercent(maxDdPct);
   } else {
     // Fallback: compute from absolute max_drawdown / initial_equity
-    const absDd = metrics.max_drawdown as number | undefined;
-    const initialEquity = metrics.initial_equity as number | undefined;
+    const absDd = typeof metrics.max_drawdown === 'number' ? metrics.max_drawdown : undefined;
+    const initialEquity = typeof metrics.initial_equity === 'number' ? metrics.initial_equity : undefined;
     if (absDd != null && initialEquity != null && initialEquity !== 0) {
       ddPctValue = formatPercent(Math.abs(absDd) / initialEquity * 100);
     } else {
@@ -136,9 +136,12 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
 
 function EquityCurveChart({ trades }: { trades: BacktestTrade[] }) {
   const data = useMemo(() => {
-    const sorted = [...trades].sort(
-      (a, b) => new Date(a.exit_date).getTime() - new Date(b.exit_date).getTime(),
-    );
+    const sorted = [...trades].sort((a, b) => {
+      const ta = new Date(a.exit_date).getTime();
+      const tb = new Date(b.exit_date).getTime();
+      if (isNaN(ta) || isNaN(tb)) return 0; // preserve order on invalid dates
+      return ta - tb;
+    });
     let cumPnl = 0;
     return sorted.map((t) => {
       cumPnl += t.pnl;
@@ -461,6 +464,11 @@ export default function BacktestPanel({ stratCode, backtestable, defaultSymbol, 
     mutationFn: deleteBacktest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backtests', stratCode] });
+    },
+    onError: (error: AxiosError<{ detail: string }>) => {
+      const detail = error.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail : 'Failed to delete backtest';
+      setFormError(msg);
     },
   });
 

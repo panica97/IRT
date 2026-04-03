@@ -76,13 +76,13 @@ function MetricCard({ label, value, colorClass }: { label: string; value: string
 function ExtendedMetricsGrid({ metrics, trades }: { metrics: BacktestMetrics; trades: BacktestTradeComplete[] }) {
   const derived = useMemo(() => computeDerivedMetrics(trades), [trades]);
 
-  // Return / DD
-  const returnPct = metrics.return_pct as number | undefined;
-  const maxDdPct = metrics.max_drawdown_pct as number | undefined;
+  // Return / DD — normalize with Math.abs to handle sign conventions
+  const returnPct = typeof metrics.return_pct === 'number' ? metrics.return_pct : undefined;
+  const maxDdPct = typeof metrics.max_drawdown_pct === 'number' ? metrics.max_drawdown_pct : undefined;
   let ratioValue: string;
   let ratioColor: string;
   if (returnPct != null && maxDdPct != null && maxDdPct !== 0) {
-    const ratio = returnPct / maxDdPct;
+    const ratio = Math.abs(returnPct) / Math.abs(maxDdPct);
     ratioValue = ratio.toFixed(2);
     ratioColor = ratio > 1 ? 'text-accent' : 'text-danger';
   } else if (metrics.total_pnl != null && metrics.max_drawdown != null && metrics.max_drawdown !== 0) {
@@ -311,31 +311,52 @@ interface HistogramBin {
 
 function buildHistogramBins(values: number[], nBins: number = 20, labelPrefix: string = ''): HistogramBin[] {
   if (!values || values.length === 0) return [];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+
+  // Loop-based min/max to avoid stack overflow on large arrays (M-02 fix)
+  let min = values[0];
+  let max = values[0];
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] < min) min = values[i];
+    if (values[i] > max) max = values[i];
+  }
   if (min === max) return [{ binStart: min, binEnd: max, label: `${labelPrefix}${Number(min).toFixed(1)}`, count: values.length }];
 
   const binWidth = (max - min) / nBins;
+
+  // Single-pass bucket assignment instead of O(n*bins) filter (M-01 fix)
+  const counts = new Array<number>(nBins).fill(0);
+  for (const v of values) {
+    let idx = Math.floor((v - min) / binWidth);
+    if (idx >= nBins) idx = nBins - 1; // clamp max value into last bin
+    counts[idx]++;
+  }
+
   const result: HistogramBin[] = [];
   for (let i = 0; i < nBins; i++) {
     const binStart = min + i * binWidth;
     const binEnd = i === nBins - 1 ? max + 0.01 : min + (i + 1) * binWidth;
-    const count = values.filter(v => v >= binStart && v < binEnd).length;
     result.push({
       binStart,
       binEnd,
       label: `${labelPrefix}${Number(binStart).toFixed(1)}`,
-      count,
+      count: counts[i],
     });
   }
   return result;
 }
 
 /** Percentile rank: what % of distribution is <= value. Higher-is-better or lower-is-better handled by caller. */
-function percentileRank(values: number[] | undefined, actual: number): number | null {
-  if (!values || values.length === 0) return null;
-  const count = values.filter(v => v <= actual).length;
-  return (count / values.length) * 100;
+function percentileRank(sortedValues: number[] | undefined, actual: number): number | null {
+  if (!sortedValues || sortedValues.length === 0) return null;
+  // Binary search for count of values <= actual (assumes pre-sorted input)
+  let lo = 0;
+  let hi = sortedValues.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sortedValues[mid] <= actual) lo = mid + 1;
+    else hi = mid;
+  }
+  return (lo / sortedValues.length) * 100;
 }
 
 // ── 1. Key Stats Cards ──────────────────────────────────────────────
@@ -453,6 +474,12 @@ function computeReturnDDFromRaw(mc: MonteCarloMetrics): { dist: MCDistribution |
   return { dist: undefined, rawArr: undefined };
 }
 
+/** Sort a numeric array for use with percentileRank (binary search). Returns a new sorted copy. */
+function sortedCopy(arr: number[] | undefined): number[] | undefined {
+  if (!arr || arr.length === 0) return arr;
+  return [...arr].sort((a, b) => a - b);
+}
+
 function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
   const { retDDDist, retDDRaw } = useMemo(() => {
     const { dist, rawArr } = computeReturnDDFromRaw(mc);
@@ -461,11 +488,16 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
 
   const baseline = mc.baseline_metrics as MCBaselineMetrics | undefined;
 
+  // Pre-sort raw arrays once for efficient percentileRank calls (M-03 fix)
+  const sortedRetDD = useMemo(() => sortedCopy(retDDRaw), [retDDRaw]);
+  const sortedMaxDD = useMemo(() => sortedCopy(mc.raw_metrics?.max_drawdown_pct), [mc.raw_metrics?.max_drawdown_pct]);
+  const sortedSharpe = useMemo(() => sortedCopy(mc.raw_metrics?.sharpe_ratio), [mc.raw_metrics?.sharpe_ratio]);
+
   const rows = useMemo(() => {
     const defs: {
       label: string;
       dist: MCDistribution | undefined;
-      rawArr: number[] | undefined;
+      sortedArr: number[] | undefined;
       fmt: (v: number) => string;
       higherIsBetter: boolean;
       baselineKey: keyof MCBaselineMetrics;
@@ -473,7 +505,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
       {
         label: 'Return / DD',
         dist: retDDDist,
-        rawArr: retDDRaw,
+        sortedArr: sortedRetDD,
         fmt: (v) => Number(v).toFixed(2),
         higherIsBetter: true,
         baselineKey: 'return_drawdown_ratio',
@@ -481,7 +513,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
       {
         label: 'Max DD %',
         dist: mc.max_drawdown_pct as MCDistribution | undefined,
-        rawArr: mc.raw_metrics?.max_drawdown_pct,
+        sortedArr: sortedMaxDD,
         fmt: (v) => `${Number(v).toFixed(1)}%`,
         higherIsBetter: false,
         baselineKey: 'max_drawdown_pct',
@@ -489,7 +521,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
       {
         label: 'Sharpe',
         dist: mc.sharpe_ratio as MCDistribution | undefined,
-        rawArr: mc.raw_metrics?.sharpe_ratio,
+        sortedArr: sortedSharpe,
         fmt: (v) => Number(v).toFixed(2),
         higherIsBetter: true,
         baselineKey: 'sharpe_ratio',
@@ -500,7 +532,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
       // Prefer real baseline metric; fall back to MC median for old jobs
       const baselineVal = baseline?.[d.baselineKey];
       const actual = (baselineVal != null ? Number(baselineVal) : null) ?? d.dist?.median ?? d.dist?.p50;
-      const rank = d.rawArr && actual != null ? percentileRank(d.rawArr, actual) : null;
+      const rank = d.sortedArr && actual != null ? percentileRank(d.sortedArr, actual) : null;
 
       // Z-Score = (actual - mean) / std
       const mean = d.dist?.mean;
@@ -520,7 +552,7 @@ function MCScorecard({ mc }: { mc: MonteCarloMetrics }) {
         fmt: d.fmt,
       };
     });
-  }, [mc, baseline, retDDDist, retDDRaw]);
+  }, [mc, baseline, retDDDist, sortedRetDD, sortedMaxDD, sortedSharpe]);
 
   return (
     <div className="border border-border rounded-lg bg-surface-1/30">
@@ -911,10 +943,19 @@ export default function BacktestReportDrawer({ jobId, open, onClose }: BacktestR
   const isMC = job?.mode === 'montecarlo';
   const isMonkey = job?.mode === 'monkey';
   const isStress = job?.mode === 'stress';
-  const metrics = job?.result?.metrics as BacktestMetrics | undefined;
-  const mcMetrics = isMC ? (job?.result?.metrics as unknown as MonteCarloMetrics | undefined) : undefined;
-  const monkeyMetrics = isMonkey ? (job?.result?.metrics as unknown as MonkeyTestMetrics | undefined) : undefined;
-  const stressMetrics = isStress ? (job?.result?.metrics as unknown as StressTestMetrics | undefined) : undefined;
+  // The metrics JSONB column is typed as BacktestMetrics but the actual shape
+  // depends on mode (montecarlo, monkey, stress each return different structures).
+  // We cast to unknown first, then apply runtime type guards (M-04 audit_05 fix).
+  const rawMetrics = job?.result?.metrics as unknown;
+  const metrics = rawMetrics as BacktestMetrics | undefined;
+
+  const isObj = rawMetrics != null && typeof rawMetrics === 'object';
+  const mcMetrics = (isMC && isObj && 'raw_metrics' in (rawMetrics as object))
+    ? (rawMetrics as unknown as MonteCarloMetrics) : undefined;
+  const monkeyMetrics = (isMonkey && isObj && 'strategy_results' in (rawMetrics as object))
+    ? (rawMetrics as unknown as MonkeyTestMetrics) : undefined;
+  const stressMetrics = (isStress && isObj && 'summary' in (rawMetrics as object))
+    ? (rawMetrics as unknown as StressTestMetrics) : undefined;
   const trades = (job?.result?.trades ?? []) as unknown as BacktestTradeComplete[];
 
 

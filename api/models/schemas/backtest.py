@@ -5,15 +5,23 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 BacktestMode = Literal["simple", "complete", "montecarlo", "monkey", "stress"]
+BacktestTimeframe = Literal[
+    "1m", "5m", "15m", "30m",
+    "1H", "2H", "3H", "4H", "8H",
+    "1D", "1W",
+    # Legacy lowercase variants accepted by engine
+    "1h", "2h", "3h", "4h", "8h", "1d", "1w",
+]
+BacktestStatus = Literal["pending", "running", "completed", "failed"]
 
 
 class BacktestCreateRequest(BaseModel):
     draft_strat_code: int
     symbol: str
-    timeframe: str = "1h"
+    timeframe: BacktestTimeframe = "1h"
     start_date: str
     end_date: str
     mode: BacktestMode = "simple"
@@ -26,6 +34,27 @@ class BacktestCreateRequest(BaseModel):
     stress_single_overrides: Optional[dict] = None
     stress_max_parallel: Optional[int] = None
     debug: bool = False
+
+    @field_validator("symbol")
+    @classmethod
+    def symbol_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("symbol must not be empty")
+        if len(v) > 20:
+            raise ValueError("symbol must be at most 20 characters")
+        return v
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def validate_date_format(cls, v: str) -> str:
+        """Ensure dates are valid YYYY-MM-DD strings."""
+        from datetime import date as _date
+        try:
+            _date.fromisoformat(v)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid date format: '{v}'. Expected YYYY-MM-DD.")
+        return v
 
 
 class BacktestResultResponse(BaseModel):

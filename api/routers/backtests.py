@@ -12,6 +12,7 @@ from api.models.schemas.backtest import (
     BacktestFailRequest,
     BacktestJobResponse,
     BacktestListResponse,
+    BacktestStatus,
 )
 from api.services import backtest_service
 
@@ -29,20 +30,20 @@ async def create_backtest(
 @router.get("", response_model=BacktestListResponse)
 async def list_backtests(
     draft_strat_code: int | None = Query(None),
-    status: str | None = Query(None),
+    status: BacktestStatus | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     return await backtest_service.list_jobs(db, draft_strat_code=draft_strat_code, status_filter=status)
 
 
-@router.get("/pending", response_model=BacktestJobResponse | None)
+@router.get("/pending")
 async def get_pending_job(
     db: AsyncSession = Depends(get_db),
 ):
     job = await backtest_service.get_pending_job(db)
     if job is None:
         return Response(status_code=204)
-    return job
+    return BacktestJobResponse.model_validate(job, from_attributes=True)
 
 
 @router.get("/{job_id}", response_model=BacktestJobResponse)
