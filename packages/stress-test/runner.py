@@ -116,8 +116,8 @@ def run_stress_test(
     print(f"[StressTest] Period: {cfg.start_date} to {cfg.end_date}", flush=True)
 
     # ---- 1. Build work items ----
-    multi_grid = build_multi_grid(cfg.param_overrides)
-    single_sweeps = build_single_sweeps(cfg.single_overrides)
+    multi_grid = build_multi_grid(cfg.param_overrides or {})
+    single_sweeps = build_single_sweeps(cfg.single_overrides or {})
 
     total_variations = len(multi_grid) + len(single_sweeps)
     print(f"[StressTest] Grid variations: {len(multi_grid)}", flush=True)
@@ -186,14 +186,16 @@ def run_stress_test(
 
     # ---- 3. Aggregate ----
     # Build param_names and param_values for multi-grid
-    param_names = list(cfg.param_overrides.keys())
+    param_overrides = cfg.param_overrides or {}
+    single_overrides = cfg.single_overrides or {}
+    param_names = list(param_overrides.keys())
     param_values = {
-        name: _expand_spec(cfg.param_overrides[name])
+        name: _expand_spec(param_overrides[name])
         for name in param_names
     }
     single_param_values = {
-        name: _expand_spec(cfg.single_overrides[name])
-        for name in cfg.single_overrides
+        name: _expand_spec(single_overrides[name])
+        for name in single_overrides
     }
 
     summary = aggregate_results(

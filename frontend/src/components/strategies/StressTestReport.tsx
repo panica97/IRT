@@ -11,11 +11,7 @@ import type { StressTestMetrics, StressTestVariation } from '../../types/backtes
 // ─── Constants ─────────────────────────────────────────────────────
 
 const HEATMAP_METRICS: { key: string; label: string; lowerIsBetter: boolean }[] = [
-  { key: 'total_pnl', label: 'Net PnL', lowerIsBetter: false },
-  { key: 'profit_factor', label: 'Profit Factor', lowerIsBetter: false },
-  { key: 'max_drawdown_pct', label: 'Max DD%', lowerIsBetter: true },
-  { key: 'win_rate', label: 'Win Rate', lowerIsBetter: false },
-  { key: 'sharpe_ratio', label: 'Sharpe', lowerIsBetter: false },
+  { key: 'return_drawdown_ratio', label: 'Ret/DD', lowerIsBetter: false },
 ];
 
 interface MetricDef {
@@ -502,7 +498,7 @@ function SensitivityHeatmap({ stress }: { stress: StressTestMetrics }) {
 
   const [xParam, setXParam] = useState('');
   const [yParam, setYParam] = useState('');
-  const [metricKey, setMetricKey] = useState('total_pnl');
+  const [metricKey, setMetricKey] = useState('return_drawdown_ratio');
 
   // Initialize selectors
   useMemo(() => {

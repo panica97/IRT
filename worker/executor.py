@@ -34,13 +34,20 @@ logger = logging.getLogger("irt-worker.executor")
 
 
 def _report_success(config: Config, job_id: int, metrics: dict, trades: list) -> None:
-    """Post backtest results to the API."""
-    resp = config.session.post(
-        f"{config.api_url}/api/backtests/{job_id}/results",
-        json={"metrics": metrics, "trades": trades},
-        timeout=15,
-    )
-    resp.raise_for_status()
+    """Post backtest results to the API.
+
+    Handles HTTP errors gracefully so the worker never crashes from a
+    reporting failure (e.g. API restart, pipeline-cancelled 409).
+    """
+    try:
+        resp = config.session.post(
+            f"{config.api_url}/api/backtests/{job_id}/results",
+            json={"metrics": metrics, "trades": trades},
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except Exception:
+        logger.exception("Failed to report success for job %d", job_id)
 
 
 def _report_failure(config: Config, job_id: int, error_message: str) -> None:

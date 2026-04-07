@@ -75,8 +75,8 @@ def run_stress_test(
         "test_name": job.get("stress_test_name", "unnamed"),
         "start_date": start_date,
         "end_date": end_date,
-        "param_overrides": job.get("stress_param_overrides", {}),
-        "single_overrides": job.get("stress_single_overrides", {}),
+        "param_overrides": job.get("stress_param_overrides") or {},
+        "single_overrides": job.get("stress_single_overrides") or {},
         "max_parallel": job.get("stress_max_parallel", 4),
     }
 
@@ -144,9 +144,11 @@ def run_stress_test(
 
         # Check exit code
         if result.returncode != 0:
-            stderr_tail = result.stderr[-2000:] if result.stderr else "(no stderr)"
+            stderr_tail = result.stderr[-2000:] if result.stderr else ""
+            stdout_tail = result.stdout[-2000:] if result.stdout else ""
+            error_detail = stderr_tail or stdout_tail or "(no output)"
             raise RuntimeError(
-                f"Stress test runner exited with code {result.returncode}: {stderr_tail}"
+                f"Stress test runner exited with code {result.returncode}: {error_detail}"
             )
 
         # Parse metrics from stdout markers
