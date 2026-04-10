@@ -29,9 +29,11 @@ async def create_job(
 @router.get("", response_model=JobListResponse)
 async def list_jobs(
     status: JobStatus | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    return await job_service.list_jobs(db, status_filter=status)
+    return await job_service.list_jobs(db, status_filter=status, limit=limit, offset=offset)
 
 
 @router.get("/{job_id}", response_model=JobResponse)

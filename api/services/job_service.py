@@ -1,4 +1,10 @@
-"""Async query logic for generic job tracking."""
+"""Async query logic for generic job tracking.
+
+NOTE: This service uses flush() instead of commit(). The get_db dependency
+(api/dependencies.py) wraps each request in a transaction that auto-commits
+after the endpoint returns. All flush() calls here are committed by that
+middleware. This is consistent with backtest_service and data_info_service.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +17,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tools.db.models import Job
+
+# Valid status transitions: current_status -> set of allowed next statuses
+_VALID_TRANSITIONS: dict[str, set[str]] = {
+    "pending": {"running"},
+    "running": {"completed", "failed"},
+    "completed": set(),
+    "failed": set(),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +73,8 @@ async def get_job(db: AsyncSession, job_id: str) -> Job:
 async def list_jobs(
     db: AsyncSession,
     status_filter: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
 ) -> dict[str, Any]:
     """List jobs with optional status filter, ordered by created_at DESC."""
     query = select(Job)
@@ -74,7 +90,8 @@ async def list_jobs(
     )
     total = (await db.execute(count_q)).scalar_one()
 
-    query = query.order_by(Job.created_at.desc())
+    # Pagination
+    query = query.order_by(Job.created_at.desc()).offset(offset).limit(limit)
     rows = (await db.execute(query)).scalars().all()
 
     return {"total": total, "jobs": rows}
@@ -100,6 +117,14 @@ async def update_job_status(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found",
+        )
+
+    # Validate status transition
+    allowed = _VALID_TRANSITIONS.get(job.status, set())
+    if new_status not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Invalid status transition: {job.status} → {new_status}",
         )
 
     job.status = new_status
